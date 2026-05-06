@@ -38,7 +38,7 @@ import {
   onSnapshot, query, orderBy, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ Firebase
+// ✅ CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyAj8vE7RZv70BJyNZvwXPQ_8kozXMMA7eM",
   authDomain: "adem-in---adem-uit.firebaseapp.com",
@@ -49,7 +49,11 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const queueCol = collection(db, "queue");
 
-// ✅ CLIENT ID stabiel
+// ✅ ADMIN
+const ADMIN_PASSWORD = "geheim123"; // 👈 verander dit
+let isAdmin = false;
+
+// ✅ CLIENT
 let clientId = localStorage.getItem("clientId");
 if (!clientId) {
   clientId = "client_" + Math.random().toString(36).slice(2);
@@ -66,6 +70,29 @@ const queueList = document.getElementById("queueList");
 const yourStatus = document.getElementById("yourStatus");
 const adminToggle = document.getElementById("adminToggle");
 
+// ✅ ADMIN LOGIN
+adminToggle.addEventListener("change", () => {
+
+  if (adminToggle.checked) {
+
+    const input = prompt("Geef admin wachtwoord:");
+
+    if (input === ADMIN_PASSWORD) {
+      isAdmin = true;
+      alert("Admin modus actief ✅");
+    } else {
+      alert("Fout wachtwoord ❌");
+      adminToggle.checked = false;
+      isAdmin = false;
+      return;
+    }
+
+  } else {
+    isAdmin = false;
+  }
+
+});
+
 // ✅ JOIN
 joinBtn.addEventListener("click", async () => {
   await addDoc(queueCol, {
@@ -79,13 +106,7 @@ joinBtn.addEventListener("click", async () => {
 // ✅ LEAVE
 leaveBtn.addEventListener("click", async () => {
   if (!currentDocId) return;
-
   await deleteDoc(doc(db, "queue", currentDocId));
-});
-
-// ✅ ADMIN refresh
-adminToggle.addEventListener("change", () => {
-  if (window._lastItems) render(window._lastItems);
 });
 
 // ✅ REALTIME
@@ -103,12 +124,10 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
     items.push({ id: d.id, ...data });
   });
 
-  window._lastItems = items;
-
   render(items);
 });
 
-// ✅ RENDER (CORE LOGICA)
+// ✅ RENDER
 function render(items) {
 
   queueList.innerHTML = "";
@@ -131,7 +150,7 @@ function render(items) {
     // ✅ ACTIES VOOR JEZELF
     if (item.id === currentDocId) {
 
-      // ✅ START (alleen eerste 2)
+      // START
       if (i === 0 || i === 1) {
 
         const start = document.createElement("button");
@@ -144,7 +163,7 @@ function render(items) {
         li.appendChild(start);
       }
 
-      // ✅ STOP
+      // STOP
       const stop = document.createElement("button");
       stop.textContent = "Stop";
       stop.onclick = () =>
@@ -152,7 +171,7 @@ function render(items) {
 
       li.appendChild(stop);
 
-      // ✅ ✅ ✅ LATER (BUG-VRIJ!)
+      // ✅ LATER (1 plaats achteruit)
       const back = document.createElement("button");
       back.textContent = "Later";
 
@@ -168,8 +187,8 @@ function render(items) {
       li.appendChild(back);
     }
 
-    // ✅ ADMIN delete
-    if (adminToggle.checked) {
+    // ✅ ADMIN DELETE
+    if (isAdmin) {
       const del = document.createElement("button");
       del.textContent = "X";
       del.onclick = () =>
@@ -180,7 +199,6 @@ function render(items) {
     queueList.appendChild(li);
   });
 
-  // ✅ STATUS
   if (myIndex === -1) {
     yourStatus.textContent = "Niet in wachtrij";
   } else {
@@ -188,11 +206,11 @@ function render(items) {
   }
 }
 
-// ✅ ✅ ✅ MOVE BACK (100% correct)
+// ✅ LATER FUNCTIE
 async function moveBackOne(item, items, index) {
 
   if (item.status === "active") {
-    alert("Je kan niet achteruit nadat je gestart bent");
+    alert("Je kan niet achteruit na start");
     return;
   }
 
@@ -203,13 +221,11 @@ async function moveBackOne(item, items, index) {
 
   const nextItem = items[index + 1];
 
-  // ✅ sleutel: positie net NA de volgende
   await updateDoc(doc(db, "queue", item.id), {
     position: nextItem.position + 1
   });
 }
 
 </script>
-
 </body>
 </html>
