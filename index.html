@@ -9,7 +9,7 @@
 body { font-family: sans-serif; max-width: 700px; margin: 20px auto; }
 li { margin: 6px 0; }
 .me { background: #e3f2fd; }
-.notice { color: green; font-weight: bold; }
+.notice { color: green; font-weight: bold; font-size: 18px; }
 button { margin-left: 5px; }
 </style>
 </head>
@@ -40,7 +40,7 @@ import {
   onSnapshot, query, orderBy, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ Firebase
+// ✅ FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSy...",
   authDomain: "adem-in---adem-uit.firebaseapp.com",
@@ -51,23 +51,49 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const queueCol = collection(db, "queue");
 
-// ✅ Rollen
+// ✅ ROLLEN
 const ADMIN_PASSWORD = "admin123";
 const SUPERADMIN_PASSWORD = "super123";
 
 let isAdmin = false;
 let isSuperAdmin = false;
 
-// ✅ State
+// ✅ STATE
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
-let notified = false;
+let lastPosition = null;
 
-// ✅ Timer
+// ✅ TIMER
 function formatTime(ms) {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`;
+}
+
+// ✅ NOTIFICATIES
+if ("Notification" in window) {
+  Notification.requestPermission().catch(() => {});
+}
+
+function showNotification() {
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification("👉 JOUW BEURT!", {
+      body: "Je bent aan de beurt!"
+    });
+  }
+
+  const original = document.title;
+  const interval = setInterval(() => {
+    document.title =
+      document.title === "👉 JOUW BEURT!"
+        ? original
+        : "👉 JOUW BEURT!";
+  }, 1000);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    document.title = original;
+  }, 15000);
 }
 
 // ✅ CLIENT
@@ -173,13 +199,13 @@ function render(items, me) {
     if (item.status === "active") li.textContent += " (bezig)";
     if (item.id === currentDocId) li.classList.add("me");
 
-    // ✅ USER ACTIES
+    // ✅ USER acties
     if (item.id === currentDocId) {
 
       if (i === 0 || i === 1) {
-
         const start = document.createElement("button");
         start.textContent = "Start";
+
         start.onclick = () =>
           updateDoc(doc(db, "queue", item.id), {
             status: "active",
@@ -197,7 +223,7 @@ function render(items, me) {
       li.appendChild(stop);
     }
 
-    // ✅ ADMIN (verwijderen)
+    // ✅ ADMIN
     if (isAdmin) {
       const del = document.createElement("button");
       del.textContent = "❌";
@@ -205,10 +231,9 @@ function render(items, me) {
       li.appendChild(del);
     }
 
-    // ✅ SUPERADMIN (verplaatsen)
+    // ✅ SUPERADMIN
     if (isSuperAdmin) {
 
-      // omhoog
       if (i > 0) {
         const up = document.createElement("button");
         up.textContent = "⬆";
@@ -216,7 +241,6 @@ function render(items, me) {
         li.appendChild(up);
       }
 
-      // omlaag
       if (i < items.length - 1) {
         const down = document.createElement("button");
         down.textContent = "⬇";
@@ -228,16 +252,32 @@ function render(items, me) {
     queueList.appendChild(li);
   });
 
-  // STATUS
+  // ✅ STATUS + NOTIFICATIES
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
+    notice.textContent = "";
+    lastPosition = null;
   } else {
     const idx = items.findIndex(x => x.id === me.id);
     yourStatus.textContent = `Positie: ${idx+1}`;
+
+    const isTop = idx === 0 || idx === 1;
+
+    // ✅ melding zichtbaar houden
+    if (isTop && me.status !== "active") {
+      notice.textContent = "👉 JE BENT AAN DE BEURT!";
+    }
+
+    // ✅ notificatie enkel bij overgang
+    if (isTop && lastPosition !== idx && me.status !== "active") {
+      showNotification();
+    }
+
+    lastPosition = idx;
   }
 }
 
-// ✅ SUPERADMIN MOVE
+// ✅ MOVE
 async function moveUp(item, items, index) {
   const prev = items[index - 1];
 
