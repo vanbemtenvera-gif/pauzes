@@ -10,7 +10,6 @@ body { font-family: sans-serif; max-width: 700px; margin: 20px auto; }
 li { margin: 6px 0; }
 .me { background: #e3f2fd; }
 .notice { color: green; font-weight: bold; font-size: 18px; }
-.timer { margin-left: 10px; color: gray; }
 button { margin-left: 5px; }
 </style>
 </head>
@@ -35,7 +34,6 @@ button { margin-left: 5px; }
 <p id="notice" class="notice"></p>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
@@ -57,21 +55,58 @@ const queueCol = collection(db, "queue");
 const ADMIN_PASSWORD = "geheim123";
 let isAdmin = false;
 
-// ✅ state
+// ✅ STATE
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
 let notified = false;
 
-// ✅ TIMER FORMAT
+// ✅ TAB STATUS
+let pageHidden = false;
+document.addEventListener("visibilitychange", () => {
+  pageHidden = document.hidden;
+});
+
+// ✅ TIMER formatter
 function formatTime(ms) {
   const total = Math.floor(ms / 1000);
   const m = Math.floor(total / 60);
   const s = total % 60;
-  return `${m}:${s.toString().padStart(2,'0')}`;
+  return `${m}:${s.toString().padStart(2,"0")}`;
 }
 
-// ✅ CLIENT
+// ✅ NOTIFICATIE PERMISSION
+if ("Notification" in window) {
+  Notification.requestPermission().catch(() => {});
+}
+
+// ✅ NOTIFICATIE FUNCTIE
+function showNotification() {
+
+  // 🔔 browser popup
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification("👉 JOUW BEURT!", {
+      body: "Je bent aan de beurt!"
+    });
+  }
+
+  // 🔄 titel knipperen
+  const original = document.title;
+
+  const interval = setInterval(() => {
+    document.title =
+      document.title === "👉 JOUW BEURT!"
+      ? original
+      : "👉 JOUW BEURT!";
+  }, 1000);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    document.title = original;
+  }, 15000);
+}
+
+// ✅ CLIENT ID
 let clientId = localStorage.getItem("clientId");
 if (!clientId) {
   clientId = "client_" + Math.random().toString(36).slice(2);
@@ -108,7 +143,7 @@ joinBtn.addEventListener("click", async () => {
     name: nameInput.value || "Anoniem",
     position: Date.now(),
     status: "waiting",
-    joinedAt: Date.now() // ✅ timer start
+    joinedAt: Date.now() // timer start
   });
 });
 
@@ -151,8 +186,9 @@ function render(items, me) {
 
     const li = document.createElement("li");
 
-    // ✅ LIVE TIMER (loopt altijd)
-    const elapsed = item.joinedAt ? Date.now() - item.joinedAt : 0;
+    const elapsed = item.joinedAt
+      ? Date.now() - item.joinedAt
+      : 0;
 
     li.textContent = `${i + 1}. ${item.name} (${formatTime(elapsed)})`;
 
@@ -162,31 +198,26 @@ function render(items, me) {
       li.textContent += " (bezig)";
     }
 
-    // ✅ eigen acties
+    // ✅ acties eigen user
     if (item.id === currentDocId) {
 
-      // START → reset timer
       if (i === 0 || i === 1) {
         const start = document.createElement("button");
         start.textContent = "Start";
-
         start.onclick = () =>
           updateDoc(doc(db, "queue", item.id), {
             status: "active",
-            joinedAt: Date.now() // ✅ RESET
+            joinedAt: Date.now() // reset timer
           });
-
         li.appendChild(start);
       }
 
-      // STOP
       const stop = document.createElement("button");
       stop.textContent = "Stop";
       stop.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
       li.appendChild(stop);
 
-      // LATER
       const back = document.createElement("button");
       back.textContent = "Later";
 
@@ -199,7 +230,7 @@ function render(items, me) {
       li.appendChild(back);
     }
 
-    // ADMIN delete
+    // admin delete
     if (isAdmin) {
       const del = document.createElement("button");
       del.textContent = "X";
@@ -211,7 +242,7 @@ function render(items, me) {
     queueList.appendChild(li);
   });
 
-  // ✅ STATUS
+  // ✅ STATUS + NOTIFICATIES
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
     notified = false;
@@ -219,18 +250,24 @@ function render(items, me) {
     const idx = items.findIndex(x => x.id === me.id);
     yourStatus.textContent = `Positie: ${idx + 1}`;
 
-    if ((idx === 0 || idx === 1) && !notified) {
-      notice.textContent = "👉 Je bent aan de beurt!";
+    const isTop = idx === 0 || idx === 1;
+
+    if (isTop && me.status !== "active" && !notified) {
+
+      notice.textContent = "👉 JE BENT AAN DE BEURT! ⏱️";
+
+      showNotification(); // ✅ ALTIJD triggeren
+
       notified = true;
     }
 
-    if (!(idx === 0 || idx === 1)) {
+    if (!isTop) {
       notified = false;
     }
   }
 }
 
-// ✅ BACK
+// ✅ LATER
 async function moveBackOne(item, items, index) {
   const nextItem = items[index + 1];
 
@@ -239,7 +276,7 @@ async function moveBackOne(item, items, index) {
   });
 }
 
-// ✅ BELANGRIJK: echte timer refresh elke seconde
+// ✅ TIMER REFRESH (belangrijk!)
 setInterval(() => {
   if (lastItems.length > 0) {
     render(lastItems, lastMe);
@@ -247,7 +284,5 @@ setInterval(() => {
 }, 1000);
 
 </script>
-
 </body>
 </html>
-``
