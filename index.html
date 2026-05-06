@@ -10,7 +10,7 @@ body { font-family: sans-serif; max-width: 700px; margin: 20px auto; }
 li { margin: 6px 0; }
 .me { background: #e3f2fd; }
 button { margin-left: 5px; }
-.notice { color: green; font-weight: bold; }
+.notice { color: green; font-weight: bold; font-size: 18px; }
 </style>
 </head>
 
@@ -34,16 +34,15 @@ button { margin-left: 5px; }
 <p id="notice" class="notice"></p>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
   onSnapshot, query, orderBy, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ CONFIG
+// ✅ Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyAj8vE7RZv70BJyNZvwXPQ_8kozXMMA7eM",
+  apiKey: "AIzaSy...",
   authDomain: "adem-in---adem-uit.firebaseapp.com",
   projectId: "adem-in---adem-uit"
 };
@@ -56,21 +55,44 @@ const queueCol = collection(db, "queue");
 const ADMIN_PASSWORD = "geheim123";
 let isAdmin = false;
 
-// ✅ NOTIFICATIE STATUS
+// ✅ Notificatie status
 let notified = false;
+let pageHidden = false;
 
-// ✅ vraag toestemming notificaties
+// ✅ detecteer tab status
+document.addEventListener("visibilitychange", () => {
+  pageHidden = document.hidden;
+});
+
+// ✅ Browser notificatie toestemming
 if ("Notification" in window) {
   Notification.requestPermission().catch(() => {});
 }
 
+// ✅ gecombineerde melding
 function showNotification() {
+
+  // 🔔 browser notificatie
   if ("Notification" in window && Notification.permission === "granted") {
-    new Notification("Jouw beurt!", {
-      body: "Je bent aan de beurt. Klik op Start.",
-      silent: true
+    new Notification("JOUW BEURT!", {
+      body: "Je bent aan de beurt. Ga naar de app!",
     });
   }
+
+  // 🔥 titel laten knipperen
+  let originalTitle = document.title;
+
+  let flashingInterval = setInterval(() => {
+    document.title =
+      document.title === "👉 JOUW BEURT!"
+        ? originalTitle
+        : "👉 JOUW BEURT!";
+  }, 1000);
+
+  setTimeout(() => {
+    clearInterval(flashingInterval);
+    document.title = originalTitle;
+  }, 15000);
 }
 
 // ✅ CLIENT
@@ -106,7 +128,6 @@ adminToggle.addEventListener("change", () => {
       isAdmin = false;
       return;
     }
-
   } else {
     isAdmin = false;
   }
@@ -172,6 +193,7 @@ function render(items, me) {
         start.textContent = "Start";
         start.onclick = () =>
           updateDoc(doc(db, "queue", item.id), { status: "active" });
+
         li.appendChild(start);
       }
 
@@ -179,6 +201,7 @@ function render(items, me) {
       stop.textContent = "Stop";
       stop.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
+
       li.appendChild(stop);
 
       const back = document.createElement("button");
@@ -199,14 +222,15 @@ function render(items, me) {
     if (isAdmin) {
       const del = document.createElement("button");
       del.textContent = "X";
-      del.onclick = () => deleteDoc(doc(db, "queue", item.id));
+      del.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
       li.appendChild(del);
     }
 
     queueList.appendChild(li);
   });
 
-  // ✅ STATUS + NOTIFICATIE
+  // ✅ STATUS + MELDINGEN
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
     notified = false;
@@ -218,8 +242,14 @@ function render(items, me) {
     const isTop = idx === 0 || idx === 1;
 
     if (isTop && me.status !== "active" && !notified) {
-      notice.textContent = "👉 Je bent aan de beurt!";
-      showNotification();
+
+      notice.textContent = "👉 JE BENT AAN DE BEURT! ⏱️";
+
+      // 🔔 toon notificatie als tab niet actief
+      if (pageHidden) {
+        showNotification();
+      }
+
       notified = true;
     }
 
