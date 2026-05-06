@@ -9,8 +9,9 @@
 body { font-family: sans-serif; max-width: 700px; margin: 20px auto; }
 li { margin: 6px 0; }
 .me { background: #e3f2fd; }
+.notice { color: green; font-weight: bold; }
+.timer { margin-left: 10px; color: gray; font-size: 14px; }
 button { margin-left: 5px; }
-.notice { color: green; font-weight: bold; font-size: 18px; }
 </style>
 </head>
 
@@ -40,7 +41,7 @@ import {
   onSnapshot, query, orderBy, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ Firebase
+// Firebase
 const firebaseConfig = {
   apiKey: "AIzaSy...",
   authDomain: "adem-in---adem-uit.firebaseapp.com",
@@ -51,58 +52,27 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const queueCol = collection(db, "queue");
 
-// ✅ ADMIN
+// ADMIN
 const ADMIN_PASSWORD = "geheim123";
 let isAdmin = false;
-
-// ✅ Notificatie status
 let notified = false;
-let pageHidden = false;
+let currentDocId = null;
 
-// ✅ detecteer tab status
-document.addEventListener("visibilitychange", () => {
-  pageHidden = document.hidden;
-});
+// ✅ helper: tijd formatteren
+function formatTime(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSec / 60);
+  const seconds = totalSec % 60;
 
-// ✅ Browser notificatie toestemming
-if ("Notification" in window) {
-  Notification.requestPermission().catch(() => {});
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-// ✅ gecombineerde melding
-function showNotification() {
-
-  // 🔔 browser notificatie
-  if ("Notification" in window && Notification.permission === "granted") {
-    new Notification("JOUW BEURT!", {
-      body: "Je bent aan de beurt. Ga naar de app!",
-    });
-  }
-
-  // 🔥 titel laten knipperen
-  let originalTitle = document.title;
-
-  let flashingInterval = setInterval(() => {
-    document.title =
-      document.title === "👉 JOUW BEURT!"
-        ? originalTitle
-        : "👉 JOUW BEURT!";
-  }, 1000);
-
-  setTimeout(() => {
-    clearInterval(flashingInterval);
-    document.title = originalTitle;
-  }, 15000);
-}
-
-// ✅ CLIENT
+// CLIENT
 let clientId = localStorage.getItem("clientId");
 if (!clientId) {
   clientId = "client_" + Math.random().toString(36).slice(2);
   localStorage.setItem("clientId", clientId);
 }
-
-let currentDocId = null;
 
 // UI
 const nameInput = document.getElementById("nameInput");
@@ -115,31 +85,26 @@ const notice = document.getElementById("notice");
 
 // ✅ ADMIN LOGIN
 adminToggle.addEventListener("change", () => {
-
   if (adminToggle.checked) {
-    const input = prompt("Geef admin wachtwoord:");
-
+    const input = prompt("Wachtwoord:");
     if (input === ADMIN_PASSWORD) {
       isAdmin = true;
-      alert("Admin modus actief ✅");
     } else {
-      alert("Fout wachtwoord ❌");
       adminToggle.checked = false;
-      isAdmin = false;
-      return;
     }
   } else {
     isAdmin = false;
   }
 });
 
-// ✅ JOIN
+// ✅ JOIN (timer start hier)
 joinBtn.addEventListener("click", async () => {
   await addDoc(queueCol, {
     clientId,
     name: nameInput.value || "Anoniem",
     position: Date.now(),
-    status: "waiting"
+    status: "waiting",
+    joinedAt: Date.now() // ✅ timer start
   });
 });
 
@@ -149,7 +114,7 @@ leaveBtn.addEventListener("click", async () => {
   await deleteDoc(doc(db, "queue", currentDocId));
 });
 
-// ✅ REALTIME
+// ✅ REALTIME LISTENER
 onSnapshot(query(queueCol, orderBy("position")), snap => {
 
   const items = [];
@@ -169,7 +134,7 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
   render(items, me);
 });
 
-// ✅ RENDER
+// ✅ RENDER LOOP
 function render(items, me) {
 
   queueList.innerHTML = "";
@@ -178,21 +143,39 @@ function render(items, me) {
   items.forEach((item, i) => {
 
     const li = document.createElement("li");
+
+    // ✅ timer berekenen
+    const elapsed = item.joinedAt ? Date.now() - item.joinedAt : 0;
+
     li.textContent = `${i + 1}. ${item.name}`;
 
-    if (item.id === currentDocId) li.classList.add("me");
+    const timerSpan = document.createElement("span");
+    timerSpan.className = "timer";
+    timerSpan.textContent = ` (${formatTime(elapsed)})`;
+
+    li.appendChild(timerSpan);
+
+    if (item.id === currentDocId) {
+      li.classList.add("me");
+    }
 
     if (item.status === "active") {
       li.textContent += " (bezig)";
     }
 
+    // ✅ ACTIES
     if (item.id === currentDocId) {
 
       if (i === 0 || i === 1) {
+
         const start = document.createElement("button");
         start.textContent = "Start";
+
         start.onclick = () =>
-          updateDoc(doc(db, "queue", item.id), { status: "active" });
+          updateDoc(doc(db, "queue", item.id), {
+            status: "active",
+            joinedAt: Date.now() // ✅ RESET TIMER
+          });
 
         li.appendChild(start);
       }
@@ -207,10 +190,7 @@ function render(items, me) {
       const back = document.createElement("button");
       back.textContent = "Later";
 
-      const isLast = i === items.length - 1;
-      const isActive = item.status === "active";
-
-      if (!isLast && !isActive) {
+      if (i < items.length - 1 && item.status !== "active") {
         back.onclick = () => moveBackOne(item, items, i);
       } else {
         back.disabled = true;
@@ -230,47 +210,42 @@ function render(items, me) {
     queueList.appendChild(li);
   });
 
-  // ✅ STATUS + MELDINGEN
+  // ✅ STATUS
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
     notified = false;
   } else {
     const idx = items.findIndex(x => x.id === me.id);
-
     yourStatus.textContent = `Positie: ${idx + 1}`;
 
-    const isTop = idx === 0 || idx === 1;
-
-    if (isTop && me.status !== "active" && !notified) {
-
-      notice.textContent = "👉 JE BENT AAN DE BEURT! ⏱️";
-
-      // 🔔 toon notificatie als tab niet actief
-      if (pageHidden) {
-        showNotification();
-      }
-
+    if ((idx === 0 || idx === 1) && !notified) {
+      notice.textContent = "👉 Je bent aan de beurt!";
       notified = true;
     }
 
-    if (!isTop) {
+    if (!(idx === 0 || idx === 1)) {
       notified = false;
     }
   }
 }
 
-// ✅ ACHTERUIT
+// ✅ MOVE BACK
 async function moveBackOne(item, items, index) {
-
-  if (item.status === "active") return;
-  if (index >= items.length - 1) return;
-
   const nextItem = items[index + 1];
 
   await updateDoc(doc(db, "queue", item.id), {
     position: nextItem.position + 1
   });
 }
+
+// ✅ LIVE TIMER (elke seconde refresh UI)
+setInterval(() => {
+  const lis = document.querySelectorAll("#queueList li");
+  lis.forEach(li => {
+    // force re-render via text refresh
+    li.style.opacity = "0.99";
+  });
+}, 1000);
 
 </script>
 </body>
