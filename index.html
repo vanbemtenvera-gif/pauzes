@@ -1,0 +1,215 @@
+
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<title>Virtuele wachtrij</title>
+
+<style>
+body { font-family: sans-serif; max-width: 700px; margin: 20px auto; }
+li { margin: 6px 0; }
+.me { background: #e3f2fd; }
+button { margin-left: 5px; }
+</style>
+</head>
+
+<body>
+
+<h1>Virtuele wachtrij</h1>
+
+<input id="nameInput" placeholder="Jouw naam">
+<button id="joinBtn">Join</button>
+<button id="leaveBtn">Leave</button>
+
+<br><br>
+
+<label>
+  <input type="checkbox" id="adminToggle">
+  Admin modus
+</label>
+
+<ul id="queueList"></ul>
+<p id="yourStatus"></p>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, doc, deleteDoc,
+  onSnapshot, query, orderBy, updateDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ✅ Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyAj8vE7RZv70BJyNZvwXPQ_8kozXMMA7eM",
+  authDomain: "adem-in---adem-uit.firebaseapp.com",
+  projectId: "adem-in---adem-uit"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const queueCol = collection(db, "queue");
+
+// ✅ CLIENT ID stabiel
+let clientId = localStorage.getItem("clientId");
+if (!clientId) {
+  clientId = "client_" + Math.random().toString(36).slice(2);
+  localStorage.setItem("clientId", clientId);
+}
+
+let currentDocId = null;
+
+// ✅ UI
+const nameInput = document.getElementById("nameInput");
+const joinBtn = document.getElementById("joinBtn");
+const leaveBtn = document.getElementById("leaveBtn");
+const queueList = document.getElementById("queueList");
+const yourStatus = document.getElementById("yourStatus");
+const adminToggle = document.getElementById("adminToggle");
+
+// ✅ JOIN
+joinBtn.addEventListener("click", async () => {
+  await addDoc(queueCol, {
+    clientId,
+    name: nameInput.value || "Anoniem",
+    position: Date.now(),
+    status: "waiting"
+  });
+});
+
+// ✅ LEAVE
+leaveBtn.addEventListener("click", async () => {
+  if (!currentDocId) return;
+
+  await deleteDoc(doc(db, "queue", currentDocId));
+});
+
+// ✅ ADMIN refresh
+adminToggle.addEventListener("change", () => {
+  if (window._lastItems) render(window._lastItems);
+});
+
+// ✅ REALTIME
+onSnapshot(query(queueCol, orderBy("position")), snap => {
+
+  const items = [];
+
+  snap.forEach(d => {
+    const data = d.data();
+
+    if (data.clientId === clientId) {
+      currentDocId = d.id;
+    }
+
+    items.push({ id: d.id, ...data });
+  });
+
+  window._lastItems = items;
+
+  render(items);
+});
+
+// ✅ RENDER (CORE LOGICA)
+function render(items) {
+
+  queueList.innerHTML = "";
+
+  const myIndex = items.findIndex(i => i.id === currentDocId);
+
+  items.forEach((item, i) => {
+
+    const li = document.createElement("li");
+    li.textContent = `${i + 1}. ${item.name}`;
+
+    if (item.id === currentDocId) {
+      li.classList.add("me");
+    }
+
+    if (item.status === "active") {
+      li.textContent += " (bezig)";
+    }
+
+    // ✅ ACTIES VOOR JEZELF
+    if (item.id === currentDocId) {
+
+      // ✅ START (alleen eerste 2)
+      if (i === 0 || i === 1) {
+
+        const start = document.createElement("button");
+        start.textContent = "Start";
+        start.onclick = () =>
+          updateDoc(doc(db, "queue", item.id), {
+            status: "active"
+          });
+
+        li.appendChild(start);
+      }
+
+      // ✅ STOP
+      const stop = document.createElement("button");
+      stop.textContent = "Stop";
+      stop.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
+
+      li.appendChild(stop);
+
+      // ✅ ✅ ✅ LATER (BUG-VRIJ!)
+      const back = document.createElement("button");
+      back.textContent = "Later";
+
+      const isLast = i === items.length - 1;
+      const isActive = item.status === "active";
+
+      if (isLast || isActive) {
+        back.disabled = true;
+      } else {
+        back.onclick = () => moveBackOne(item, items, i);
+      }
+
+      li.appendChild(back);
+    }
+
+    // ✅ ADMIN delete
+    if (adminToggle.checked) {
+      const del = document.createElement("button");
+      del.textContent = "X";
+      del.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
+      li.appendChild(del);
+    }
+
+    queueList.appendChild(li);
+  });
+
+  // ✅ STATUS
+  if (myIndex === -1) {
+    yourStatus.textContent = "Niet in wachtrij";
+  } else {
+    yourStatus.textContent = `Positie: ${myIndex + 1}`;
+  }
+}
+
+// ✅ ✅ ✅ MOVE BACK (100% correct)
+async function moveBackOne(item, items, index) {
+
+  if (item.status === "active") {
+    alert("Je kan niet achteruit nadat je gestart bent");
+    return;
+  }
+
+  if (index >= items.length - 1) {
+    alert("Je bent al laatste");
+    return;
+  }
+
+  const nextItem = items[index + 1];
+
+  // ✅ sleutel: positie net NA de volgende
+  await updateDoc(doc(db, "queue", item.id), {
+    position: nextItem.position + 1
+  });
+}
+
+</script>
+
+</body>
+</html>
