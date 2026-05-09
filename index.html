@@ -6,15 +6,90 @@
 <title>Virtuele wachtrij</title>
 
 <style>
-body { font-family: sans-serif; max-width: 700px; margin: 20px auto; }
-li { margin: 6px 0; }
-.me { background: #e3f2fd; }
-.notice { color: green; font-weight: bold; font-size: 18px; }
-button { margin-left: 5px; }
+body {
+  font-family: system-ui, sans-serif;
+  background: #f5f7fb;
+  max-width: 700px;
+  margin: 20px auto;
+}
+
+h1 {
+  text-align: center;
+}
+
+.container {
+  background: white;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+}
+
+input {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  margin-right: 10px;
+}
+
+button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: #1976d2;
+  color: white;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover {
+  background: #145ca8;
+}
+
+li {
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+li.me {
+  background: #e3f2fd;
+  border: 2px solid #1976d2;
+}
+
+li.active {
+  background: #e8f5e9;
+}
+
+.notice {
+  color: green;
+  font-weight: bold;
+  font-size: 18px;
+  text-align: center;
+}
+
+.controls button {
+  margin-left: 5px;
+}
+
+#slotControls {
+  margin-top: 10px;
+}
+
+#yourStatus {
+  text-align: center;
+  margin-top: 10px;
+  font-weight: bold;
+}
 </style>
 </head>
 
 <body>
+
+<div class="container">
 
 <h1>Virtuele wachtrij</h1>
 
@@ -29,7 +104,7 @@ button { margin-left: 5px; }
   Admin / Superadmin
 </label>
 
-<div id="slotControls" style="display:none; margin-top:10px;">
+<div id="slotControls" style="display:none;">
   <button id="minusSlot">-</button>
   <span id="slotInfo">Slots: 2</span>
   <button id="plusSlot">+</button>
@@ -38,6 +113,8 @@ button { margin-left: 5px; }
 <ul id="queueList"></ul>
 <p id="yourStatus"></p>
 <p id="notice" class="notice"></p>
+
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -59,46 +136,30 @@ const db = getFirestore(app);
 const queueCol = collection(db, "queue");
 const configDoc = doc(db, "config", "settings");
 
-// Rollen
 const ADMIN_PASSWORD = "admin123";
 const SUPERADMIN_PASSWORD = "super123";
 
 let isAdmin = false;
 let isSuperAdmin = false;
-
-// ✅ slots (gedeeld)
 let maxSlots = 2;
-
-// ✅ notificatie tracking
 let lastWasTop = false;
 
-// ✅ 🔔 NIEUW GELUID (iPhone-style)
 const beep = new Audio("https://archive.org/download/iphone_notification/iphone_notification.mp3");
 
-// state
-let currentDocId = null;
-let lastItems = [];
-let lastMe = null;
-
-// notificaties
 if ("Notification" in window) {
   Notification.requestPermission().catch(() => {});
 }
 
 function showNotification() {
-
-  // ✅ 🔔 SPEELT 1 KEER
   beep.currentTime = 0;
   beep.play().catch(() => {});
 
-  // popup
   if (Notification.permission === "granted") {
     new Notification("👉 JOUW BEURT!", {
       body: "Je mag starten!"
     });
   }
 
-  // titel knipperen
   const original = document.title;
   const interval = setInterval(() => {
     document.title =
@@ -118,10 +179,8 @@ if (!clientId) {
   localStorage.setItem("clientId", clientId);
 }
 
-// UI
+// UI refs
 const nameInput = document.getElementById("nameInput");
-const joinBtn = document.getElementById("joinBtn");
-const leaveBtn = document.getElementById("leaveBtn");
 const queueList = document.getElementById("queueList");
 const yourStatus = document.getElementById("yourStatus");
 const adminToggle = document.getElementById("adminToggle");
@@ -129,13 +188,7 @@ const notice = document.getElementById("notice");
 const slotControls = document.getElementById("slotControls");
 const slotInfo = document.getElementById("slotInfo");
 
-// timer
-function formatTime(ms) {
-  const s = Math.floor(ms / 1000);
-  return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`;
-}
-
-// ✅ realtime slots
+// slots realtime
 onSnapshot(configDoc, async (snap) => {
   if (snap.exists()) {
     maxSlots = snap.data().maxSlots ?? 2;
@@ -145,7 +198,6 @@ onSnapshot(configDoc, async (snap) => {
   slotInfo.textContent = `Slots: ${maxSlots}`;
 });
 
-// admin login
 adminToggle.addEventListener("change", () => {
   if (adminToggle.checked) {
     const input = prompt("Wachtwoord:");
@@ -162,7 +214,6 @@ adminToggle.addEventListener("change", () => {
     } else {
       alert("Fout ❌");
       adminToggle.checked = false;
-      return;
     }
   } else {
     isAdmin = false;
@@ -172,18 +223,18 @@ adminToggle.addEventListener("change", () => {
 });
 
 // slots aanpassen
-document.getElementById("plusSlot").onclick = async () => {
+plusSlot.onclick = async () => {
   await setDoc(configDoc, { maxSlots: maxSlots + 1 }, { merge: true });
 };
 
-document.getElementById("minusSlot").onclick = async () => {
+minusSlot.onclick = async () => {
   if (maxSlots > 1) {
     await setDoc(configDoc, { maxSlots: maxSlots - 1 }, { merge: true });
   }
 };
 
-// JOIN
-joinBtn.addEventListener("click", async () => {
+// join
+joinBtn.onclick = async () => {
   await addDoc(queueCol, {
     clientId,
     name: nameInput.value || "Anoniem",
@@ -191,15 +242,16 @@ joinBtn.addEventListener("click", async () => {
     status: "waiting",
     joinedAt: Date.now()
   });
-});
+};
 
-// LEAVE
-leaveBtn.addEventListener("click", async () => {
-  if (!currentDocId) return;
-  await deleteDoc(doc(db, "queue", currentDocId));
-});
+// leave
+leaveBtn.onclick = async () => {
+  const q = document.querySelector(".me");
+  if (!q) return;
+  await deleteDoc(doc(db, "queue", q.dataset.id));
+};
 
-// realtime queue
+// realtime
 onSnapshot(query(queueCol, orderBy("position")), snap => {
 
   const items = [];
@@ -209,15 +261,11 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
     const data = d.data();
 
     if (data.clientId === clientId) {
-      currentDocId = d.id;
       me = { id: d.id, ...data };
     }
 
     items.push({ id: d.id, ...data });
   });
-
-  lastItems = items;
-  lastMe = me;
 
   render(items, me);
 });
@@ -230,60 +278,52 @@ function render(items, me) {
   items.forEach((item, i) => {
 
     const li = document.createElement("li");
-    const elapsed = item.joinedAt ? Date.now() - item.joinedAt : 0;
+    li.dataset.id = item.id;
 
-    li.textContent = `${i+1}. ${item.name} (${Math.floor(elapsed/60000)}:${(Math.floor(elapsed/1000)%60).toString().padStart(2,"0")})`;
+    if (item.id === me?.id) li.classList.add("me");
+    if (item.status === "active") li.classList.add("active");
 
-    if (item.status === "active") li.textContent += " (bezig)";
-    if (item.id === currentDocId) li.classList.add("me");
+    const left = document.createElement("span");
+    left.textContent = `${i+1}. ${item.name}`;
 
-    if (item.id === currentDocId) {
+    const controls = document.createElement("div");
+    controls.className = "controls";
+
+    if (item.id === me?.id) {
 
       if (i < maxSlots) {
         const start = document.createElement("button");
         start.textContent = "Start";
-
         start.onclick = () =>
           updateDoc(doc(db, "queue", item.id), {
             status: "active",
             joinedAt: Date.now()
           });
-
-        li.appendChild(start);
+        controls.appendChild(start);
       }
 
       const stop = document.createElement("button");
       stop.textContent = "Stop";
-      stop.onclick = () =>
-        deleteDoc(doc(db, "queue", item.id));
-      li.appendChild(stop);
-
-      const back = document.createElement("button");
-      back.textContent = "⬇ Later";
-
-      if (i < items.length - 1 && item.status !== "active") {
-        back.onclick = () => moveBackOne(item, items, i);
-      } else {
-        back.disabled = true;
-      }
-
-      li.appendChild(back);
+      stop.onclick = () => deleteDoc(doc(db, "queue", item.id));
+      controls.appendChild(stop);
     }
 
     if (isAdmin) {
       const del = document.createElement("button");
       del.textContent = "❌";
       del.onclick = () => deleteDoc(doc(db, "queue", item.id));
-      li.appendChild(del);
+      controls.appendChild(del);
     }
+
+    li.appendChild(left);
+    li.appendChild(controls);
 
     queueList.appendChild(li);
   });
 
-  // ✅ notificatie fix
+  // status
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
-    notice.textContent = "";
     lastWasTop = false;
   } else {
     const idx = items.findIndex(x => x.id === me.id);
@@ -291,11 +331,7 @@ function render(items, me) {
 
     const isTop = idx < maxSlots;
 
-    if (isTop && me.status !== "active") {
-      notice.textContent = "👉 JE BENT AAN DE BEURT!";
-    } else {
-      notice.textContent = "";
-    }
+    notice.textContent = isTop ? "👉 JE BENT AAN DE BEURT!" : "";
 
     if (isTop && !lastWasTop && me.status !== "active") {
       showNotification();
@@ -304,27 +340,7 @@ function render(items, me) {
     lastWasTop = isTop;
   }
 }
-
-// swap functies
-async function moveBackOne(item, items, index) {
-  const next = items[index + 1];
-
-  await updateDoc(doc(db, "queue", item.id), {
-    position: next.position
-  });
-
-  await updateDoc(doc(db, "queue", next.id), {
-    position: item.position
-  });
-}
-
-// refresh
-setInterval(() => {
-  if (lastItems.length > 0) {
-    render(lastItems, lastMe);
-  }
-}, 1000);
-
 </script>
+
 </body>
 </html>
