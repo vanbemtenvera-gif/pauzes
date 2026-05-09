@@ -29,9 +29,10 @@ button { margin-left: 5px; }
   Admin / Superadmin
 </label>
 
+<!-- ✅ Slots -->
 <div id="slotControls" style="display:none; margin-top:10px;">
   <button id="minusSlot">-</button>
-  <span id="slotInfo">Extra slots: 0</span>
+  <span id="slotInfo">Slots: 2</span>
   <button id="plusSlot">+</button>
 </div>
 
@@ -43,7 +44,7 @@ button { margin-left: 5px; }
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
-  onSnapshot, query, orderBy, updateDoc
+  onSnapshot, query, orderBy, updateDoc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Firebase
@@ -55,7 +56,9 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+
 const queueCol = collection(db, "queue");
+const configDoc = doc(db, "config", "settings");
 
 // Rollen
 const ADMIN_PASSWORD = "admin123";
@@ -64,16 +67,16 @@ const SUPERADMIN_PASSWORD = "super123";
 let isAdmin = false;
 let isSuperAdmin = false;
 
-// Slots
-let extraSlots = 0;
+// ✅ gedeelde slots (standaard 2)
+let maxSlots = 2;
 
-// State
+// state
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
 let lastPosition = null;
 
-// ✅ NOTIFICATIES
+// notificatie
 if ("Notification" in window) {
   Notification.requestPermission().catch(() => {});
 }
@@ -97,7 +100,7 @@ function showNotification() {
   }, 15000);
 }
 
-// Client ID
+// client id
 let clientId = localStorage.getItem("clientId");
 if (!clientId) {
   clientId = "client_" + Math.random().toString(36).slice(2);
@@ -115,20 +118,31 @@ const notice = document.getElementById("notice");
 const slotControls = document.getElementById("slotControls");
 const slotInfo = document.getElementById("slotInfo");
 
-// Timer
+// timer
 function formatTime(ms) {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`;
 }
 
-// Admin login
+// ✅ realtime slots ophalen
+onSnapshot(configDoc, async (snap) => {
+  if (snap.exists()) {
+    maxSlots = snap.data().maxSlots ?? 2;
+  } else {
+    await setDoc(configDoc, { maxSlots: 2 });
+  }
+
+  slotInfo.textContent = `Slots: ${maxSlots}`;
+});
+
+// ✅ admin login
 adminToggle.addEventListener("change", () => {
   if (adminToggle.checked) {
     const input = prompt("Wachtwoord:");
 
     if (input === SUPERADMIN_PASSWORD) {
-      isSuperAdmin = true;
       isAdmin = true;
+      isSuperAdmin = true;
       slotControls.style.display = "block";
 
     } else if (input === ADMIN_PASSWORD) {
@@ -147,16 +161,14 @@ adminToggle.addEventListener("change", () => {
   }
 });
 
-// Slots knoppen
-document.getElementById("plusSlot").onclick = () => {
-  extraSlots++;
-  slotInfo.textContent = `Extra slots: ${extraSlots}`;
+// ✅ slots aanpassen (globaal)
+document.getElementById("plusSlot").onclick = async () => {
+  await setDoc(configDoc, { maxSlots: maxSlots + 1 }, { merge: true });
 };
 
-document.getElementById("minusSlot").onclick = () => {
-  if (extraSlots > 0) {
-    extraSlots--;
-    slotInfo.textContent = `Extra slots: ${extraSlots}`;
+document.getElementById("minusSlot").onclick = async () => {
+  if (maxSlots > 1) {
+    await setDoc(configDoc, { maxSlots: maxSlots - 1 }, { merge: true });
   }
 };
 
@@ -177,7 +189,7 @@ leaveBtn.addEventListener("click", async () => {
   await deleteDoc(doc(db, "queue", currentDocId));
 });
 
-// REALTIME
+// realtime queue
 onSnapshot(query(queueCol, orderBy("position")), snap => {
 
   const items = [];
@@ -200,7 +212,7 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
   render(items, me);
 });
 
-// RENDER
+// render
 function render(items, me) {
 
   queueList.innerHTML = "";
@@ -217,7 +229,8 @@ function render(items, me) {
 
     if (item.id === currentDocId) {
 
-      if (i < (2 + extraSlots)) {
+      // ✅ START gebaseerd op globale slots
+      if (i < maxSlots) {
         const start = document.createElement("button");
         start.textContent = "Start";
 
@@ -230,15 +243,17 @@ function render(items, me) {
         li.appendChild(start);
       }
 
+      // STOP
       const stop = document.createElement("button");
       stop.textContent = "Stop";
       stop.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
       li.appendChild(stop);
 
+      // LATER
       const back = document.createElement("button");
-      back.textContent = "⬇ Later";
 
+back.textContent = "⬇ Later";
       if (i < items.length - 1 && item.status !== "active") {
         back.onclick = () => moveBackOne(item, items, i);
       } else {
@@ -248,6 +263,7 @@ function render(items, me) {
       li.appendChild(back);
     }
 
+    // ADMIN delete
     if (isAdmin) {
       const del = document.createElement("button");
       del.textContent = "❌";
@@ -255,6 +271,7 @@ function render(items, me) {
       li.appendChild(del);
     }
 
+    // SUPERADMIN reorder
     if (isSuperAdmin) {
 
       if (i > 0) {
@@ -275,7 +292,7 @@ function render(items, me) {
     queueList.appendChild(li);
   });
 
-  // STATUS + NOTIFICATIE
+  // status + notificatie
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
     notice.textContent = "";
@@ -284,13 +301,12 @@ function render(items, me) {
     const idx = items.findIndex(x => x.id === me.id);
     yourStatus.textContent = `Positie: ${idx+1}`;
 
-    const isTop = idx < (2 + extraSlots);
+    const isTop = idx < maxSlots;
 
     if (isTop && me.status !== "active") {
       notice.textContent = "👉 JE BENT AAN DE BEURT!";
     }
 
-    // ✅ NOTIFICATIE TRIGGER
     if (isTop && lastPosition !== idx && me.status !== "active") {
       showNotification();
     }
@@ -299,10 +315,8 @@ function render(items, me) {
   }
 }
 
-// ✅ SWAP (FIX)
+// ✅ swap (belangrijk!)
 async function moveBackOne(item, items, index) {
-  if (index >= items.length - 1) return;
-
   const next = items[index + 1];
 
   await updateDoc(doc(db, "queue", item.id), {
