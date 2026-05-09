@@ -141,12 +141,13 @@ import {
   onSnapshot, query, orderBy, updateDoc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ DAGELIJKSE RUSTIGE BACKGROUND
-const today = new Date().toISOString().slice(0,10);
+// ✅ DAGELIJKSE PICSUM BACKGROUND (STABIEL)
+const today = new Date().toISOString().slice(0,10).replace(/-/g,"");
 
-document.body.style.backgroundImage =
-  `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
-   url("https://source.unsplash.com/1600x900/?meditation,calm,zen,nature&sig=${today}")`;
+document.body.style.backgroundImage = `
+  linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
+  url("https://picsum.photos/seed/${today}/1600/900")
+`;
 
 // Firebase
 const firebaseConfig = {
