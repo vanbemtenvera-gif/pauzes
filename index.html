@@ -66,19 +66,19 @@ const SUPERADMIN_PASSWORD = "super123";
 let isAdmin = false;
 let isSuperAdmin = false;
 
-// ✅ shared slots
+// ✅ slots (gedeeld)
 let maxSlots = 2;
 
 // ✅ notificatie tracking
 let lastWasTop = false;
 
+// ✅ 🔔 NIEUW GELUID (iPhone-style)
+const beep = new Audio("https://archive.org/download/iphone_notification/iphone_notification.mp3");
+
 // state
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
-
-// 🔔 geluid
-const beep = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
 
 // notificaties
 if ("Notification" in window) {
@@ -86,7 +86,8 @@ if ("Notification" in window) {
 }
 
 function showNotification() {
-  // 🔔 geluid
+
+  // ✅ 🔔 SPEELT 1 KEER
   beep.currentTime = 0;
   beep.play().catch(() => {});
 
@@ -134,14 +135,13 @@ function formatTime(ms) {
   return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`;
 }
 
-// ✅ slots realtime
+// ✅ realtime slots
 onSnapshot(configDoc, async (snap) => {
   if (snap.exists()) {
     maxSlots = snap.data().maxSlots ?? 2;
   } else {
     await setDoc(configDoc, { maxSlots: 2 });
   }
-
   slotInfo.textContent = `Slots: ${maxSlots}`;
 });
 
@@ -232,7 +232,7 @@ function render(items, me) {
     const li = document.createElement("li");
     const elapsed = item.joinedAt ? Date.now() - item.joinedAt : 0;
 
-    li.textContent = `${i+1}. ${item.name} (${formatTime(elapsed)})`;
+    li.textContent = `${i+1}. ${item.name} (${Math.floor(elapsed/60000)}:${(Math.floor(elapsed/1000)%60).toString().padStart(2,"0")})`;
 
     if (item.status === "active") li.textContent += " (bezig)";
     if (item.id === currentDocId) li.classList.add("me");
@@ -277,27 +277,10 @@ function render(items, me) {
       li.appendChild(del);
     }
 
-    if (isSuperAdmin) {
-
-      if (i > 0) {
-        const up = document.createElement("button");
-        up.textContent = "⬆";
-        up.onclick = () => moveUp(item, items, i);
-        li.appendChild(up);
-      }
-
-      if (i < items.length - 1) {
-        const down = document.createElement("button");
-        down.textContent = "⬇";
-        down.onclick = () => moveDown(item, items, i);
-        li.appendChild(down);
-      }
-    }
-
     queueList.appendChild(li);
   });
 
-  // ✅ STATUS + NOTIFICATIE FIX
+  // ✅ notificatie fix
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
     notice.textContent = "";
@@ -314,7 +297,6 @@ function render(items, me) {
       notice.textContent = "";
     }
 
-    // 🔥 BELANGRIJKE FIX
     if (isTop && !lastWasTop && me.status !== "active") {
       showNotification();
     }
@@ -325,30 +307,6 @@ function render(items, me) {
 
 // swap functies
 async function moveBackOne(item, items, index) {
-  const next = items[index + 1];
-
-  await updateDoc(doc(db, "queue", item.id), {
-    position: next.position
-  });
-
-  await updateDoc(doc(db, "queue", next.id), {
-    position: item.position
-  });
-}
-
-async function moveUp(item, items, index) {
-  const prev = items[index - 1];
-
-  await updateDoc(doc(db, "queue", item.id), {
-    position: prev.position
-  });
-
-  await updateDoc(doc(db, "queue", prev.id), {
-    position: item.position
-  });
-}
-
-async function moveDown(item, items, index) {
   const next = items[index + 1];
 
   await updateDoc(doc(db, "queue", item.id), {
