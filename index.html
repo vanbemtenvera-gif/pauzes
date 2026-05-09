@@ -65,7 +65,9 @@ li {
   text-align: center;
 }
 
-.controls button { margin-left: 5px; }
+.controls button {
+  margin-left: 5px;
+}
 
 #yourStatus {
   text-align: center;
@@ -118,7 +120,7 @@ document.body.style.backgroundImage =
 `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
 url("https://picsum.photos/seed/${today}/1600/900")`;
 
-// ✅ notificatie toestemming vragen
+// ✅ notificatie toestemming
 if ("Notification" in window) {
   Notification.requestPermission().catch(() => {});
 }
@@ -136,7 +138,6 @@ const db = getFirestore(app);
 const queueCol = collection(db, "queue");
 const configDoc = doc(db, "config", "settings");
 
-// Rollen
 const ADMIN_PASSWORD = "admin123";
 const SUPERADMIN_PASSWORD = "super123";
 
@@ -145,10 +146,13 @@ let isSuperAdmin = false;
 let maxSlots = 2;
 let lastWasTop = false;
 
+// ✅ belangrijk voor realtime fixes
+let lastItems = [];
+let lastMe = null;
+
 // 🔔 geluid
 const beep = new Audio("https://archive.org/download/iphone_notification/iphone_notification.mp3");
 
-// ✅ notificatie functie (FIX)
 function showNotification() {
   beep.currentTime = 0;
   beep.play().catch(() => {});
@@ -176,14 +180,20 @@ const notice = document.getElementById("notice");
 const slotControls = document.getElementById("slotControls");
 const slotInfo = document.getElementById("slotInfo");
 
-// slots realtime
+// ✅ slots realtime + FIX refresh
 onSnapshot(configDoc, async (snap) => {
   if (snap.exists()) {
     maxSlots = snap.data().maxSlots ?? 2;
   } else {
     await setDoc(configDoc, { maxSlots: 2 });
   }
+
   slotInfo.textContent = `Slots: ${maxSlots}`;
+
+  // ✅ opnieuw renderen -> FIX user 3 probleem
+  if (lastItems.length > 0) {
+    render(lastItems, lastMe);
+  }
 });
 
 // admin login
@@ -233,14 +243,14 @@ joinBtn.onclick = async () => {
   });
 };
 
-// leave
+// leave (werkt nu stabiel)
 leaveBtn.onclick = async () => {
-  const meEl = document.querySelector(".me");
-  if (!meEl) return;
-  await deleteDoc(doc(db, "queue", meEl.dataset.id));
+  const me = lastItems.find(x => x.clientId === clientId);
+  if (!me) return;
+  await deleteDoc(doc(db, "queue", me.id));
 };
 
-// realtime
+// realtime queue
 onSnapshot(query(queueCol, orderBy("position")), snap => {
 
   const items = [];
@@ -248,9 +258,16 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 
   snap.forEach(d => {
     const data = d.data();
-    if (data.clientId === clientId) me = { id: d.id, ...data };
+
+    if (data.clientId === clientId) {
+      me = { id: d.id, ...data };
+    }
+
     items.push({ id: d.id, ...data });
   });
+
+  lastItems = items;
+  lastMe = me;
 
   render(items, me);
 });
@@ -272,6 +289,7 @@ function render(items, me) {
     left.textContent = `${i+1}. ${item.name}`;
 
     const controls = document.createElement("div");
+    controls.className = "controls";
 
     if (item.id === me?.id) {
 
@@ -293,12 +311,19 @@ function render(items, me) {
       controls.appendChild(stop);
     }
 
+    if (isAdmin) {
+      const del = document.createElement("button");
+      del.textContent = "❌";
+      del.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
+      controls.appendChild(del);
+    }
+
     li.appendChild(left);
     li.appendChild(controls);
     queueList.appendChild(li);
   });
 
-  // ✅ STATUS + FIX
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
     notice.textContent = "";
@@ -309,7 +334,6 @@ function render(items, me) {
   const idx = items.findIndex(x => x.id === me.id);
   const isTop = idx < maxSlots;
 
-  // ✅ FIX: melding weg zodra actief
   if (me.status === "active") {
     yourStatus.textContent = `Positie: ${idx+1}`;
     notice.textContent = "";
