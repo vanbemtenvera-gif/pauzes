@@ -46,7 +46,7 @@ import {
   onSnapshot, query, orderBy, updateDoc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ Firebase
+// Firebase
 const firebaseConfig = {
   apiKey: "AIzaSy...",
   authDomain: "adem-in---adem-uit.firebaseapp.com",
@@ -59,7 +59,7 @@ const db = getFirestore(app);
 const queueCol = collection(db, "queue");
 const configDoc = doc(db, "config", "settings");
 
-// ✅ State
+// State
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
@@ -67,7 +67,7 @@ let lastPosition = null;
 let maxActiveSlots = 2;
 let isAdmin = false;
 
-// ✅ UI
+// UI
 const nameInput = document.getElementById("nameInput");
 const joinBtn = document.getElementById("joinBtn");
 const leaveBtn = document.getElementById("leaveBtn");
@@ -78,20 +78,20 @@ const notice = document.getElementById("notice");
 const adminControls = document.getElementById("adminControls");
 const slotDisplay = document.getElementById("slotDisplay");
 
-// ✅ Timer
+// Timer
 function formatTime(ms) {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`;
 }
 
-// ✅ Client ID
+// Client ID
 let clientId = localStorage.getItem("clientId");
 if (!clientId) {
   clientId = "client_" + Math.random().toString(36).slice(2);
   localStorage.setItem("clientId", clientId);
 }
 
-// ✅ Admin
+// Admin
 adminToggle.addEventListener("change", () => {
   if (adminToggle.checked) {
     const input = prompt("Wachtwoord:");
@@ -108,7 +108,7 @@ adminToggle.addEventListener("change", () => {
   }
 });
 
-// ✅ Config realtime
+// Config
 onSnapshot(configDoc, async (snap) => {
   if (snap.exists()) {
     maxActiveSlots = snap.data().maxActiveSlots ?? 2;
@@ -118,7 +118,7 @@ onSnapshot(configDoc, async (snap) => {
   slotDisplay.textContent = `Slots: ${maxActiveSlots}`;
 });
 
-// ✅ Admin knoppen
+// Slot knoppen
 document.getElementById("slotPlus").onclick = async () => {
   await setDoc(configDoc, {
     maxActiveSlots: maxActiveSlots + 1
@@ -133,42 +133,31 @@ document.getElementById("slotMinus").onclick = async () => {
   }
 };
 
-// ✅ JOIN (ALTijd correcte position)
+// JOIN
 joinBtn.addEventListener("click", async () => {
   await addDoc(queueCol, {
     clientId,
     name: nameInput.value || "Anoniem",
-    position: Date.now() + Math.random(), // ✅ extra stabiel
-    status: "waiting",
-    joinedAt: Date.now()
+    position: Date.now(),   // blijft
+    joinedAt: Date.now(),   // fallback
+    status: "waiting"
   });
 });
 
-// ✅ LEAVE
+// LEAVE
 leaveBtn.addEventListener("click", async () => {
   if (!currentDocId) return;
   await deleteDoc(doc(db, "queue", currentDocId));
 });
 
-// ✅ REALTIME LIST + AUTO FIX
-onSnapshot(query(queueCol, orderBy("position", "asc")), async snap => {
+// ✅ 🔥 BELANGRIJK: GEEN WRITES HIER MEER
+onSnapshot(query(queueCol, orderBy("position", "asc")), snap => {
 
   let items = [];
   let me = null;
 
-  for (const d of snap.docs) {
-    let data = d.data();
-
-    // ✅ 🔥 CRUCIALE FIX: ontbrekende position herstellen
-    if (data.position === undefined) {
-      const fixedPosition = Date.now() + Math.random();
-
-      await updateDoc(doc(db, "queue", d.id), {
-        position: fixedPosition
-      });
-
-      data.position = fixedPosition;
-    }
+  snap.forEach(d => {
+    const data = d.data();
 
     if (data.clientId === clientId) {
       currentDocId = d.id;
@@ -176,10 +165,14 @@ onSnapshot(query(queueCol, orderBy("position", "asc")), async snap => {
     }
 
     items.push({ id: d.id, ...data });
-  }
+  });
 
-  // ✅ dubbele safety sort
-  items.sort((a, b) => a.position - b.position);
+  // ✅ STABIELE SORT (DE FIX)
+  items.sort((a, b) => {
+    const pa = a.position ?? a.joinedAt ?? Infinity;
+    const pb = b.position ?? b.joinedAt ?? Infinity;
+    return pa - pb;
+  });
 
   lastItems = items;
   lastMe = me;
@@ -187,7 +180,7 @@ onSnapshot(query(queueCol, orderBy("position", "asc")), async snap => {
   render(items, me);
 });
 
-// ✅ RENDER
+// RENDER
 function render(items, me) {
 
   queueList.innerHTML = "";
@@ -232,7 +225,7 @@ function render(items, me) {
     queueList.appendChild(li);
   });
 
-  // ✅ STATUS
+  // STATUS
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
     notice.textContent = "";
@@ -253,7 +246,7 @@ function render(items, me) {
   }
 }
 
-// ✅ refresh
+// refresh
 setInterval(() => {
   if (lastItems.length > 0) {
     render(lastItems, lastMe);
