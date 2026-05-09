@@ -29,7 +29,6 @@ button { margin-left: 5px; }
   Admin / Superadmin
 </label>
 
-<!-- ✅ Admin controls -->
 <div id="adminControls" style="display:none; margin-top:10px;">
   <button id="slotMinus">-</button>
   <span id="slotDisplay">Slots: 2</span>
@@ -44,7 +43,7 @@ button { margin-left: 5px; }
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
-  onSnapshot, query, orderBy, updateDoc, setDoc
+  onSnapshot, query, orderBy, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ Firebase
@@ -56,9 +55,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const queueCol = collection(db, "queue");
 
-// ✅ Config document
+const queueCol = collection(db, "queue");
 const configDoc = doc(db, "config", "settings");
 
 // ✅ Rollen
@@ -66,7 +64,6 @@ const ADMIN_PASSWORD = "admin123";
 const SUPERADMIN_PASSWORD = "super123";
 
 let isAdmin = false;
-let isSuperAdmin = false;
 
 // ✅ State
 let currentDocId = null;
@@ -93,19 +90,6 @@ function formatTime(ms) {
   return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`;
 }
 
-// ✅ Notifications
-if ("Notification" in window) {
-  Notification.requestPermission().catch(() => {});
-}
-
-function showNotification() {
-  if ("Notification" in window && Notification.permission === "granted") {
-    new Notification("👉 JOUW BEURT!", {
-      body: "Je bent aan de beurt!"
-    });
-  }
-}
-
 // ✅ Client ID
 let clientId = localStorage.getItem("clientId");
 if (!clientId) {
@@ -118,33 +102,26 @@ adminToggle.addEventListener("change", () => {
   if (adminToggle.checked) {
     const input = prompt("Wachtwoord:");
 
-    if (input === SUPERADMIN_PASSWORD) {
-      isSuperAdmin = true;
+    if (input === ADMIN_PASSWORD || input === SUPERADMIN_PASSWORD) {
       isAdmin = true;
       adminControls.style.display = "block";
-
-    } else if (input === ADMIN_PASSWORD) {
-      isAdmin = true;
-      adminControls.style.display = "block";
-
     } else {
       alert("Fout ❌");
       adminToggle.checked = false;
       adminControls.style.display = "none";
-      return;
     }
   } else {
     isAdmin = false;
-    isSuperAdmin = false;
     adminControls.style.display = "none";
   }
 });
 
-// ✅ Config realtime
+// ✅ 🔥 Config realtime (FIXED)
 onSnapshot(configDoc, async (snap) => {
   if (snap.exists()) {
-    maxActiveSlots = snap.data().maxActiveSlots || 2;
+    maxActiveSlots = snap.data().maxActiveSlots ?? 2;
   } else {
+    // veilige init
     await setDoc(configDoc, { maxActiveSlots: 2 });
     maxActiveSlots = 2;
   }
@@ -152,18 +129,18 @@ onSnapshot(configDoc, async (snap) => {
   slotDisplay.textContent = `Slots: ${maxActiveSlots}`;
 });
 
-// ✅ Admin slot knoppen
+// ✅ 🔥 ADMIN SLOT KNOPPEN (FIXED)
 document.getElementById("slotPlus").onclick = async () => {
-  await updateDoc(configDoc, {
+  await setDoc(configDoc, {
     maxActiveSlots: maxActiveSlots + 1
-  });
+  }, { merge: true });
 };
 
 document.getElementById("slotMinus").onclick = async () => {
   if (maxActiveSlots > 1) {
-    await updateDoc(configDoc, {
+    await setDoc(configDoc, {
       maxActiveSlots: maxActiveSlots - 1
-    });
+    }, { merge: true });
   }
 };
 
@@ -184,7 +161,7 @@ leaveBtn.addEventListener("click", async () => {
   await deleteDoc(doc(db, "queue", currentDocId));
 });
 
-// ✅ REALTIME LISTENER
+// ✅ REALTIME LIST
 onSnapshot(query(queueCol, orderBy("position")), snap => {
 
   const items = [];
@@ -222,47 +199,28 @@ function render(items, me) {
     if (item.status === "active") li.textContent += " (bezig)";
     if (item.id === currentDocId) li.classList.add("me");
 
-    // ✅ USER acties
     if (item.id === currentDocId) {
 
-      // ✅ START
+      // ✅ dynamische slots
       if (i < maxActiveSlots) {
         const start = document.createElement("button");
         start.textContent = "Start";
-
         start.onclick = () =>
-          updateDoc(doc(db, "queue", item.id), {
+          setDoc(doc(db, "queue", item.id), {
             status: "active",
             joinedAt: Date.now()
-          });
-
+          }, { merge: true });
         li.appendChild(start);
       }
 
-      // ✅ STOP
       const stop = document.createElement("button");
       stop.textContent = "Stop";
       stop.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
       li.appendChild(stop);
-
-      // ✅ Later
-      const back = document.createElement("button");
-      back.textContent = "⬇ Later";
-
-      const isLast = i === items.length - 1;
-      const isActive = item.status === "active";
-
-      if (!isLast && !isActive) {
-        back.onclick = () => moveBackOne(item, items, i);
-      } else {
-        back.disabled = true;
-      }
-
-      li.appendChild(back);
     }
 
-    // ✅ ADMIN delete
+    // ✅ admin delete
     if (isAdmin) {
       const del = document.createElement("button");
       del.textContent = "❌";
@@ -273,7 +231,7 @@ function render(items, me) {
     queueList.appendChild(li);
   });
 
-  // ✅ STATUS
+  // ✅ status
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
     notice.textContent = "";
@@ -284,9 +242,8 @@ function render(items, me) {
 
     const isTop = idx < maxActiveSlots;
 
-    if (isTop && me.status !== "active") {
+    if (isTop && lastPosition !== idx) {
       notice.textContent = "👉 JE BENT AAN DE BEURT!";
-      if (lastPosition !== idx) showNotification();
     } else {
       notice.textContent = "";
     }
@@ -295,19 +252,7 @@ function render(items, me) {
   }
 }
 
-// ✅ move back
-async function moveBackOne(item, items, index) {
-  if (item.status === "active") return;
-  if (index >= items.length - 1) return;
-
-  const next = items[index + 1];
-
-  await updateDoc(doc(db, "queue", item.id), {
-    position: next.position + 1
-  });
-}
-
-// ✅ refresh timer
+// ✅ refresh
 setInterval(() => {
   if (lastItems.length > 0) {
     render(lastItems, lastMe);
