@@ -15,19 +15,25 @@ body {
   background-attachment: fixed;
 }
 
+/* overlay */
 body::before {
   content: "";
   position: fixed;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   background: rgba(0,0,0,0.4);
+  z-index: 0;
 }
 
 .container {
   position: relative;
+  z-index: 1;
   max-width: 700px;
   margin: 40px auto;
   background: rgba(255,255,255,0.9);
+  backdrop-filter: blur(10px);
   padding: 25px;
   border-radius: 20px;
 }
@@ -41,11 +47,13 @@ li {
   justify-content: space-between;
 }
 
+/* jij */
 .me {
   background: #e3f2fd;
   border: 2px solid #1976d2;
 }
 
+/* actief */
 .active {
   background: #e8f5e9 !important;
   border: 2px solid #4caf50;
@@ -93,8 +101,8 @@ import {
   onSnapshot, query, orderBy, updateDoc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// ✅ achtergrond (picsum)
 const today = new Date().toISOString().slice(0,10).replace(/-/g,"");
-
 document.body.style.backgroundImage =
 `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
 url("https://picsum.photos/seed/${today}/1600/900")`;
@@ -113,11 +121,12 @@ const configDoc = doc(db, "config", "settings");
 let maxSlots = 2;
 let lastWasTop = false;
 
+// 🔔 geluid
 const beep = new Audio("https://archive.org/download/iphone_notification/iphone_notification.mp3");
 
 function showNotification() {
   beep.currentTime = 0;
-  beep.play().catch(()=>{});
+  beep.play().catch(() => {});
 }
 
 // client id
@@ -133,7 +142,7 @@ onSnapshot(configDoc, async snap => {
   }
 });
 
-// JOIN
+// join
 joinBtn.onclick = async () => {
   await addDoc(queueCol, {
     clientId,
@@ -143,7 +152,14 @@ joinBtn.onclick = async () => {
   });
 };
 
-// REALTIME
+// leave
+leaveBtn.onclick = async () => {
+  const me = document.querySelector(".me");
+  if (!me) return;
+  await deleteDoc(doc(db, "queue", me.dataset.id));
+};
+
+// realtime
 onSnapshot(query(queueCol, orderBy("position")), snap => {
 
   const items = [];
@@ -158,7 +174,7 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
   render(items, me);
 });
 
-// ✅ RENDER
+// render
 function render(items, me) {
 
   queueList.innerHTML = "";
@@ -166,6 +182,7 @@ function render(items, me) {
   items.forEach((item, i) => {
 
     const li = document.createElement("li");
+    li.dataset.id = item.id;
 
     if (item.id === me?.id) li.classList.add("me");
     if (item.status === "active") li.classList.add("active");
@@ -174,7 +191,6 @@ function render(items, me) {
 
     if (item.id === me?.id) {
 
-      // ✅ START
       if (i < maxSlots) {
         const start = document.createElement("button");
         start.textContent = "Start";
@@ -183,17 +199,17 @@ function render(items, me) {
         li.appendChild(start);
       }
 
-      // ✅ STOP
       const stop = document.createElement("button");
       stop.textContent = "Stop";
-      stop.onclick = () => deleteDoc(doc(db,"queue",item.id));
+      stop.onclick = () =>
+        deleteDoc(doc(db,"queue",item.id));
       li.appendChild(stop);
     }
 
     queueList.appendChild(li);
   });
 
-  // ✅ STATUS FIX
+  // ✅ FIX HIER
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
     notice.textContent = "";
@@ -204,14 +220,15 @@ function render(items, me) {
   const idx = items.findIndex(x => x.id === me.id);
   const isTop = idx < maxSlots;
 
-  // ✅ 🔥 NIEUW: als actief → alles resetten
+  // 🔥 belangrijkste fix
   if (me.status === "active") {
-    notice.textContent = "";
-    lastWasTop = false;
+    yourStatus.textContent = `Positie: ${idx+1}`;
+    notice.textContent = "";        // ✅ melding weg
+    lastWasTop = false;             // ✅ reset trigger
     return;
   }
 
-  // normaal gedrag
+  yourStatus.textContent = `Positie: ${idx+1}`;
   notice.textContent = isTop ? "👉 JE BENT AAN DE BEURT!" : "";
 
   if (isTop && !lastWasTop) {
