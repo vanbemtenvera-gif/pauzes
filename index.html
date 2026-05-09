@@ -118,6 +118,11 @@ document.body.style.backgroundImage =
 `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
 url("https://picsum.photos/seed/${today}/1600/900")`;
 
+// ✅ notificatie toestemming vragen
+if ("Notification" in window) {
+  Notification.requestPermission().catch(() => {});
+}
+
 // Firebase
 const firebaseConfig = {
   apiKey: "AIzaSy...",
@@ -143,9 +148,16 @@ let lastWasTop = false;
 // 🔔 geluid
 const beep = new Audio("https://archive.org/download/iphone_notification/iphone_notification.mp3");
 
+// ✅ notificatie functie (FIX)
 function showNotification() {
   beep.currentTime = 0;
   beep.play().catch(() => {});
+
+  if (Notification.permission === "granted") {
+    new Notification("👉 JOUW BEURT!", {
+      body: "Je mag starten!"
+    });
+  }
 }
 
 // client id
@@ -236,11 +248,7 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 
   snap.forEach(d => {
     const data = d.data();
-
-    if (data.clientId === clientId) {
-      me = { id: d.id, ...data };
-    }
-
+    if (data.clientId === clientId) me = { id: d.id, ...data };
     items.push({ id: d.id, ...data });
   });
 
@@ -264,7 +272,6 @@ function render(items, me) {
     left.textContent = `${i+1}. ${item.name}`;
 
     const controls = document.createElement("div");
-    controls.className = "controls";
 
     if (item.id === me?.id) {
 
@@ -281,49 +288,17 @@ function render(items, me) {
 
       const stop = document.createElement("button");
       stop.textContent = "Stop";
-      stop.onclick = () => deleteDoc(doc(db, "queue", item.id));
+      stop.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
       controls.appendChild(stop);
-
-      // ⬇ later
-      if (i < items.length - 1 && item.status !== "active") {
-        const back = document.createElement("button");
-        back.textContent = "⬇";
-        back.onclick = () => moveBackOne(item, items, i);
-        controls.appendChild(back);
-      }
-    }
-
-    if (isAdmin) {
-      const del = document.createElement("button");
-      del.textContent = "❌";
-      del.onclick = () => deleteDoc(doc(db, "queue", item.id));
-      controls.appendChild(del);
-    }
-
-    if (isSuperAdmin) {
-
-      if (i > 0) {
-        const up = document.createElement("button");
-        up.textContent = "⬆";
-        up.onclick = () => moveUp(item, items, i);
-        controls.appendChild(up);
-      }
-
-      if (i < items.length - 1) {
-        const down = document.createElement("button");
-        down.textContent = "⬇";
-        down.onclick = () => moveDown(item, items, i);
-        controls.appendChild(down);
-      }
     }
 
     li.appendChild(left);
     li.appendChild(controls);
-
     queueList.appendChild(li);
   });
 
-  // ✅ STATUS FIX
+  // ✅ STATUS + FIX
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
     notice.textContent = "";
@@ -334,10 +309,10 @@ function render(items, me) {
   const idx = items.findIndex(x => x.id === me.id);
   const isTop = idx < maxSlots;
 
-  // ✅ 🔥 BELANGRIJKE FIX
+  // ✅ FIX: melding weg zodra actief
   if (me.status === "active") {
     yourStatus.textContent = `Positie: ${idx+1}`;
-    notice.textContent = "";   // melding weg
+    notice.textContent = "";
     lastWasTop = false;
     return;
   }
@@ -351,26 +326,7 @@ function render(items, me) {
 
   lastWasTop = isTop;
 }
-
-// swap functies
-async function moveBackOne(item, items, index) {
-  const next = items[index + 1];
-  await updateDoc(doc(db,"queue",item.id), { position: next.position });
-  await updateDoc(doc(db,"queue",next.id), { position: item.position });
-}
-
-async function moveUp(item, items, index) {
-  const prev = items[index - 1];
-  await updateDoc(doc(db,"queue",item.id), { position: prev.position });
-  await updateDoc(doc(db,"queue",prev.id), { position: item.position });
-}
-
-async function moveDown(item, items, index) {
-  const next = items[index + 1];
-  await updateDoc(doc(db,"queue",item.id), { position: next.position });
-  await updateDoc(doc(db,"queue",next.id), { position: item.position });
-}
-
 </script>
+
 </body>
 </html>
