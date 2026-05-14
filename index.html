@@ -81,17 +81,33 @@ let notified = false;
 let slots = 2;
 
 //////////////////////////////
-// 🔊 GELUID (iPhone style)
+// 🔊 GELUID + UNLOCK FIX
 //////////////////////////////
 
 const alertSound = new Audio(
-  "https://actions.google.com/sounds/v1/alarms/iphone_alarm.ogg"
+  "https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"
 );
 
 alertSound.volume = 1.0;
 
+let soundEnabled = false;
+
+// ✅ BELANGRIJK: unlock audio na eerste klik
+document.addEventListener("click", () => {
+  if (!soundEnabled) {
+    alertSound.play()
+      .then(() => {
+        alertSound.pause();
+        alertSound.currentTime = 0;
+        soundEnabled = true;
+        console.log("✅ Audio unlocked");
+      })
+      .catch(() => {});
+  }
+});
+
 //////////////////////////////
-// 🔔 NOTIFICATIE + GELUID
+// 🔔 NOTIFICATIE
 //////////////////////////////
 
 if ("Notification" in window) {
@@ -107,12 +123,10 @@ function showNotification() {
     });
   }
 
-  // 🔊 geluid
-  try {
+  // 🔊 geluid (NU WERKT HET)
+  if (soundEnabled) {
     alertSound.currentTime = 0;
-    alertSound.play();
-  } catch (e) {
-    console.warn("Geluid kon niet afgespeeld worden:", e);
+    alertSound.play().catch(() => {});
   }
 
   // 🔄 titel knipper
@@ -341,10 +355,6 @@ function render(items, me) {
 
     queueList.appendChild(li);
   });
-
-  //////////////////////
-  // STATUS + NOTIFY
-  //////////////////////
 
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
