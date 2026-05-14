@@ -37,8 +37,7 @@ button { margin-left: 5px; }
   Admin modus
 </label>
 
-<!-- ✅ NIEUW: slots -->
-<div id="adminControls" style="display:none; margin-top:10px;">
+<div id="adminControls" style="display:none;margin-top:10px;">
   <button id="decreaseSlot">-</button>
   <span id="slotCount">Slots: 2</span>
   <button id="increaseSlot">+</button>
@@ -68,8 +67,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const queueCol = collection(db, "queue");
-
-// ✅ config doc voor slots
 const configDoc = doc(db, "config", "settings");
 
 //////////////////////////////
@@ -81,7 +78,7 @@ let lastItems = [];
 let lastMe = null;
 let isAdmin = false;
 let notified = false;
-let slots = 2; // default
+let slots = 2;
 
 //////////////////////////////
 // NOTIFICATIE
@@ -127,6 +124,17 @@ const increaseSlot = document.getElementById("increaseSlot");
 const decreaseSlot = document.getElementById("decreaseSlot");
 
 //////////////////////////////
+// HELPERS
+//////////////////////////////
+
+function formatTime(ms) {
+  const total = Math.floor(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2,"0")}`;
+}
+
+//////////////////////////////
 // ADMIN
 //////////////////////////////
 
@@ -147,7 +155,6 @@ adminToggle.addEventListener("change", () => {
   }
 });
 
-// ✅ slots aanpassen
 increaseSlot.onclick = async () => {
   if (!isAdmin) return;
   await setDoc(configDoc, { slots: slots + 1 });
@@ -158,24 +165,12 @@ decreaseSlot.onclick = async () => {
   await setDoc(configDoc, { slots: slots - 1 });
 };
 
-// ✅ realtime slots listener
 onSnapshot(configDoc, snap => {
   if (snap.exists()) {
     slots = snap.data().slots || 2;
   }
   slotCount.textContent = `Slots: ${slots}`;
 });
-
-//////////////////////////////
-// HELPERS
-//////////////////////////////
-
-function formatTime(ms) {
-  const total = Math.floor(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2,"0")}`;
-}
 
 //////////////////////////////
 // JOIN
@@ -208,7 +203,7 @@ leaveBtn.addEventListener("click", async () => {
 });
 
 //////////////////////////////
-// REALTIME QUEUE
+// REALTIME
 //////////////////////////////
 
 onSnapshot(query(queueCol, orderBy("position")), snap => {
@@ -231,6 +226,27 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 
   render(items, me);
 });
+
+//////////////////////////////
+// ✅ FIX: MOVE BACK (CORRECT)
+// Zorgt dat je echt 1 plaats zakt
+//////////////////////////////
+
+async function moveBack(item, items, index) {
+  try {
+    const next = items[index + 1];
+
+    if (!next) return;
+
+    // swap positions
+    await updateDoc(doc(db, "queue", item.id), {
+      position: next.position + 1
+    });
+
+  } catch (e) {
+    console.error("Move error:", e);
+  }
+}
 
 //////////////////////////////
 // RENDER
@@ -257,9 +273,9 @@ function render(items, me) {
       li.textContent += " (bezig)";
     }
 
-    // ✅ user acties
     if (item.id === currentDocId) {
 
+      // ✅ START
       if (i < slots) {
         const startBtn = document.createElement("button");
         startBtn.textContent = "Start";
@@ -271,11 +287,24 @@ function render(items, me) {
         li.appendChild(startBtn);
       }
 
+      // ✅ STOP
       const stopBtn = document.createElement("button");
       stopBtn.textContent = "Stop";
       stopBtn.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
       li.appendChild(stopBtn);
+
+      // ✅ ✅ ✅ FIXED "LATER"
+      const laterBtn = document.createElement("button");
+      laterBtn.textContent = "Later";
+
+      if (i < items.length - 1 && item.status !== "active") {
+        laterBtn.onclick = () => moveBack(item, items, i);
+      } else {
+        laterBtn.disabled = true;
+      }
+
+      li.appendChild(laterBtn);
     }
 
     // ✅ admin delete
