@@ -25,7 +25,7 @@ button { margin-left: 5px; }
 
 <label>
   <input type="checkbox" id="adminToggle">
-  Admin modus
+  Admin / Superadmin
 </label>
 
 <ul id="queueList"></ul>
@@ -50,53 +50,43 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const queueCol = collection(db, "queue");
 
-// ✅ ADMIN
-const ADMIN_PASSWORD = "geheim123";
-let isAdmin = false;
+// ✅ Rollen
+const ADMIN_PASSWORD = "admin123";
+const SUPERADMIN_PASSWORD = "super123";
 
-// ✅ STATE
+let isAdmin = false;
+let isSuperAdmin = false;
+
+// ✅ State
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
-let notified = false;
+let lastPosition = null;
 
-// ✅ TAB STATUS
-let pageHidden = false;
-document.addEventListener("visibilitychange", () => {
-  pageHidden = document.hidden;
-});
-
-// ✅ TIMER formatter
+// ✅ Timer
 function formatTime(ms) {
-  const total = Math.floor(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2,"0")}`;
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`;
 }
 
-// ✅ NOTIFICATIE PERMISSION
+// ✅ Notifications
 if ("Notification" in window) {
   Notification.requestPermission().catch(() => {});
 }
 
-// ✅ NOTIFICATIE FUNCTIE
 function showNotification() {
-
-  // 🔔 browser popup
   if ("Notification" in window && Notification.permission === "granted") {
     new Notification("👉 JOUW BEURT!", {
       body: "Je bent aan de beurt!"
     });
   }
 
-  // 🔄 titel knipperen
   const original = document.title;
-
   const interval = setInterval(() => {
     document.title =
       document.title === "👉 JOUW BEURT!"
-      ? original
-      : "👉 JOUW BEURT!";
+        ? original
+        : "👉 JOUW BEURT!";
   }, 1000);
 
   setTimeout(() => {
@@ -105,7 +95,7 @@ function showNotification() {
   }, 15000);
 }
 
-// ✅ CLIENT ID
+// ✅ Client ID
 let clientId = localStorage.getItem("clientId");
 if (!clientId) {
   clientId = "client_" + Math.random().toString(36).slice(2);
@@ -121,17 +111,31 @@ const yourStatus = document.getElementById("yourStatus");
 const adminToggle = document.getElementById("adminToggle");
 const notice = document.getElementById("notice");
 
-// ✅ ADMIN LOGIN
+// ✅ Admin login
 adminToggle.addEventListener("change", () => {
   if (adminToggle.checked) {
-    const input = prompt("Admin wachtwoord:");
-    if (input === ADMIN_PASSWORD) {
+    const input = prompt("Wachtwoord:");
+
+    if (input === SUPERADMIN_PASSWORD) {
+      isSuperAdmin = true;
       isAdmin = true;
+      alert("Superadmin ✅");
+
+    } else if (input === ADMIN_PASSWORD) {
+      isAdmin = true;
+      isSuperAdmin = false;
+      alert("Admin ✅");
+
     } else {
+      alert("Fout ❌");
       adminToggle.checked = false;
+      isAdmin = false;
+      isSuperAdmin = false;
+      return;
     }
   } else {
     isAdmin = false;
+    isSuperAdmin = false;
   }
 });
 
@@ -142,7 +146,7 @@ joinBtn.addEventListener("click", async () => {
     name: nameInput.value || "Anoniem",
     position: Date.now(),
     status: "waiting",
-    joinedAt: Date.now() // timer start
+    joinedAt: Date.now()
   });
 });
 
@@ -179,48 +183,50 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 function render(items, me) {
 
   queueList.innerHTML = "";
-  notice.textContent = "";
 
   items.forEach((item, i) => {
 
     const li = document.createElement("li");
 
-    const elapsed = item.joinedAt
-      ? Date.now() - item.joinedAt
-      : 0;
+    const elapsed = item.joinedAt ? Date.now() - item.joinedAt : 0;
 
-    li.textContent = `${i + 1}. ${item.name} (${formatTime(elapsed)})`;
+    li.textContent = `${i+1}. ${item.name} (${formatTime(elapsed)})`;
 
+    if (item.status === "active") li.textContent += " (bezig)";
     if (item.id === currentDocId) li.classList.add("me");
 
-    if (item.status === "active") {
-      li.textContent += " (bezig)";
-    }
-
-    // ✅ acties eigen user
+    // ✅ USER acties
     if (item.id === currentDocId) {
 
+      // START
       if (i === 0 || i === 1) {
         const start = document.createElement("button");
         start.textContent = "Start";
+
         start.onclick = () =>
           updateDoc(doc(db, "queue", item.id), {
             status: "active",
-            joinedAt: Date.now() // reset timer
+            joinedAt: Date.now()
           });
+
         li.appendChild(start);
       }
 
+      // STOP
       const stop = document.createElement("button");
       stop.textContent = "Stop";
       stop.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
       li.appendChild(stop);
 
+      // ✅ LATER (FIX TOEGEVOEGD)
       const back = document.createElement("button");
-      back.textContent = "Later";
+      back.textContent = "⬇ Later";
 
-      if (i < items.length - 1 && item.status !== "active") {
+      const isLast = i === items.length - 1;
+      const isActive = item.status === "active";
+
+      if (!isLast && !isActive) {
         back.onclick = () => moveBackOne(item, items, i);
       } else {
         back.disabled = true;
@@ -229,13 +235,30 @@ function render(items, me) {
       li.appendChild(back);
     }
 
-    // admin delete
+    // ✅ ADMIN delete
     if (isAdmin) {
       const del = document.createElement("button");
-      del.textContent = "X";
-      del.onclick = () =>
-        deleteDoc(doc(db, "queue", item.id));
+      del.textContent = "❌";
+      del.onclick = () => deleteDoc(doc(db, "queue", item.id));
       li.appendChild(del);
+    }
+
+    // ✅ SUPERADMIN manipulatie
+    if (isSuperAdmin) {
+
+      if (i > 0) {
+        const up = document.createElement("button");
+        up.textContent = "⬆";
+        up.onclick = () => moveUp(item, items, i);
+        li.appendChild(up);
+      }
+
+      if (i < items.length - 1) {
+        const down = document.createElement("button");
+        down.textContent = "⬇";
+        down.onclick = () => moveDown(item, items, i);
+        li.appendChild(down);
+      }
     }
 
     queueList.appendChild(li);
@@ -244,38 +267,57 @@ function render(items, me) {
   // ✅ STATUS + NOTIFICATIES
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
-    notified = false;
+    notice.textContent = "";
+    lastPosition = null;
   } else {
     const idx = items.findIndex(x => x.id === me.id);
-    yourStatus.textContent = `Positie: ${idx + 1}`;
+    yourStatus.textContent = `Positie: ${idx+1}`;
 
     const isTop = idx === 0 || idx === 1;
 
-    if (isTop && me.status !== "active" && !notified) {
-
-      notice.textContent = "👉 JE BENT AAN DE BEURT! ⏱️";
-
-      showNotification(); // ✅ ALTIJD triggeren
-
-      notified = true;
+    if (isTop && me.status !== "active") {
+      notice.textContent = "👉 JE BENT AAN DE BEURT!";
     }
 
-    if (!isTop) {
-      notified = false;
+    if (isTop && lastPosition !== idx && me.status !== "active") {
+      showNotification();
     }
+
+    lastPosition = idx;
   }
 }
 
-// ✅ LATER
+// ✅ USER move back
 async function moveBackOne(item, items, index) {
-  const nextItem = items[index + 1];
+
+  if (item.status === "active") return;
+  if (index >= items.length - 1) return;
+
+  const next = items[index + 1];
 
   await updateDoc(doc(db, "queue", item.id), {
-    position: nextItem.position + 1
+    position: next.position + 1
   });
 }
 
-// ✅ TIMER REFRESH (belangrijk!)
+// ✅ SUPERADMIN moves
+async function moveUp(item, items, index) {
+  const prev = items[index - 1];
+
+  await updateDoc(doc(db, "queue", item.id), {
+    position: prev.position - 1
+  });
+}
+
+async function moveDown(item, items, index) {
+  const next = items[index + 1];
+
+  await updateDoc(doc(db, "queue", item.id), {
+    position: next.position + 1
+  });
+}
+
+// ✅ TIMER REFRESH
 setInterval(() => {
   if (lastItems.length > 0) {
     render(lastItems, lastMe);
