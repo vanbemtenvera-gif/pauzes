@@ -81,7 +81,17 @@ let notified = false;
 let slots = 2;
 
 //////////////////////////////
-// NOTIFICATIE
+// 🔊 GELUID (iPhone style)
+//////////////////////////////
+
+const alertSound = new Audio(
+  "https://actions.google.com/sounds/v1/alarms/iphone_alarm.ogg"
+);
+
+alertSound.volume = 1.0;
+
+//////////////////////////////
+// 🔔 NOTIFICATIE + GELUID
 //////////////////////////////
 
 if ("Notification" in window) {
@@ -89,11 +99,36 @@ if ("Notification" in window) {
 }
 
 function showNotification() {
+
+  // 🔔 popup
   if (Notification.permission === "granted") {
     new Notification("👉 JOUW BEURT!", {
       body: "Je bent aan de beurt!"
     });
   }
+
+  // 🔊 geluid
+  try {
+    alertSound.currentTime = 0;
+    alertSound.play();
+  } catch (e) {
+    console.warn("Geluid kon niet afgespeeld worden:", e);
+  }
+
+  // 🔄 titel knipper
+  const original = document.title;
+
+  const interval = setInterval(() => {
+    document.title =
+      document.title === "👉 JOUW BEURT!"
+        ? original
+        : "👉 JOUW BEURT!";
+  }, 1000);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    document.title = original;
+  }, 15000);
 }
 
 //////////////////////////////
@@ -177,6 +212,7 @@ onSnapshot(configDoc, snap => {
 //////////////////////////////
 
 joinBtn.addEventListener("click", async () => {
+
   const exists = lastItems.find(i => i.clientId === clientId);
   if (exists) {
     alert("Je zit al in de wachtrij");
@@ -227,7 +263,7 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 });
 
 //////////////////////////////
-// MOVE BACK (FIX)
+// MOVE BACK
 //////////////////////////////
 
 async function moveBack(item, items, index) {
@@ -266,7 +302,6 @@ function render(items, me) {
 
     if (item.id === currentDocId) {
 
-      // START
       if (i < slots) {
         const startBtn = document.createElement("button");
         startBtn.textContent = "Start";
@@ -278,20 +313,16 @@ function render(items, me) {
         li.appendChild(startBtn);
       }
 
-      // STOP
       const stopBtn = document.createElement("button");
       stopBtn.textContent = "Stop";
       stopBtn.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
       li.appendChild(stopBtn);
 
-      // ✅ FIX: LATER ALTIJD MAKEN
       const laterBtn = document.createElement("button");
       laterBtn.textContent = "Later";
 
-      // ✅ alleen disablen indien nodig
       if (i < items.length - 1 && item.status !== "active") {
-        laterBtn.disabled = false;
         laterBtn.onclick = () => moveBack(item, items, i);
       } else {
         laterBtn.disabled = true;
@@ -300,7 +331,6 @@ function render(items, me) {
       li.appendChild(laterBtn);
     }
 
-    // ADMIN
     if (isAdmin) {
       const delBtn = document.createElement("button");
       delBtn.textContent = "X";
@@ -313,7 +343,7 @@ function render(items, me) {
   });
 
   //////////////////////
-  // STATUS
+  // STATUS + NOTIFY
   //////////////////////
 
   if (!me) {
