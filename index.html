@@ -177,7 +177,6 @@ onSnapshot(configDoc, snap => {
 //////////////////////////////
 
 joinBtn.addEventListener("click", async () => {
-
   const exists = lastItems.find(i => i.clientId === clientId);
   if (exists) {
     alert("Je zit al in de wachtrij");
@@ -228,24 +227,16 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 });
 
 //////////////////////////////
-// ✅ FIX: MOVE BACK (CORRECT)
-// Zorgt dat je echt 1 plaats zakt
+// MOVE BACK (FIX)
 //////////////////////////////
 
 async function moveBack(item, items, index) {
-  try {
-    const next = items[index + 1];
+  const next = items[index + 1];
+  if (!next) return;
 
-    if (!next) return;
-
-    // swap positions
-    await updateDoc(doc(db, "queue", item.id), {
-      position: next.position + 1
-    });
-
-  } catch (e) {
-    console.error("Move error:", e);
-  }
+  await updateDoc(doc(db, "queue", item.id), {
+    position: next.position + 0.5
+  });
 }
 
 //////////////////////////////
@@ -275,7 +266,7 @@ function render(items, me) {
 
     if (item.id === currentDocId) {
 
-      // ✅ START
+      // START
       if (i < slots) {
         const startBtn = document.createElement("button");
         startBtn.textContent = "Start";
@@ -287,18 +278,20 @@ function render(items, me) {
         li.appendChild(startBtn);
       }
 
-      // ✅ STOP
+      // STOP
       const stopBtn = document.createElement("button");
       stopBtn.textContent = "Stop";
       stopBtn.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
       li.appendChild(stopBtn);
 
-      // ✅ ✅ ✅ FIXED "LATER"
+      // ✅ FIX: LATER ALTIJD MAKEN
       const laterBtn = document.createElement("button");
       laterBtn.textContent = "Later";
 
+      // ✅ alleen disablen indien nodig
       if (i < items.length - 1 && item.status !== "active") {
+        laterBtn.disabled = false;
         laterBtn.onclick = () => moveBack(item, items, i);
       } else {
         laterBtn.disabled = true;
@@ -307,7 +300,7 @@ function render(items, me) {
       li.appendChild(laterBtn);
     }
 
-    // ✅ admin delete
+    // ADMIN
     if (isAdmin) {
       const delBtn = document.createElement("button");
       delBtn.textContent = "X";
@@ -320,7 +313,7 @@ function render(items, me) {
   });
 
   //////////////////////
-  // STATUS + NOTIFY
+  // STATUS
   //////////////////////
 
   if (!me) {
@@ -346,7 +339,7 @@ function render(items, me) {
 }
 
 //////////////////////////////
-// TIMER REFRESH
+// TIMER
 //////////////////////////////
 
 setInterval(() => {
