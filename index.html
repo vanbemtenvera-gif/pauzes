@@ -49,7 +49,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 //////////////////////////////
-// 🔥 FIREBASE CONFIG
+// FIREBASE
 //////////////////////////////
 
 const firebaseConfig = {
@@ -71,6 +71,40 @@ let lastItems = [];
 let lastMe = null;
 let isAdmin = false;
 let notified = false;
+
+//////////////////////////////
+// NOTIFICATIES
+//////////////////////////////
+
+// toestemming vragen
+if ("Notification" in window) {
+  Notification.requestPermission().catch(() => {});
+}
+
+function showNotification() {
+
+  // 🔔 popup
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification("👉 JOUW BEURT!", {
+      body: "Je bent aan de beurt!"
+    });
+  }
+
+  // 🔄 titel knipperen
+  const original = document.title;
+
+  const interval = setInterval(() => {
+    document.title =
+      document.title === "👉 JOUW BEURT!"
+        ? original
+        : "👉 JOUW BEURT!";
+  }, 1000);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    document.title = original;
+  }, 15000);
+}
 
 //////////////////////////////
 // CLIENT ID
@@ -106,7 +140,7 @@ function formatTime(ms) {
 }
 
 //////////////////////////////
-// ADMIN LOGIN
+// ADMIN
 //////////////////////////////
 
 const ADMIN_PASSWORD = "geheim123";
@@ -116,7 +150,6 @@ adminToggle.addEventListener("change", () => {
     const input = prompt("Admin wachtwoord:");
     if (input === ADMIN_PASSWORD) {
       isAdmin = true;
-      console.log("✅ Admin ingelogd");
     } else {
       adminToggle.checked = false;
     }
@@ -131,7 +164,6 @@ adminToggle.addEventListener("change", () => {
 
 joinBtn.addEventListener("click", async () => {
 
-  // ✅ voorkom dubbele join
   const exists = lastItems.find(i => i.clientId === clientId);
   if (exists) {
     alert("Je zit al in de wachtrij");
@@ -146,12 +178,8 @@ joinBtn.addEventListener("click", async () => {
       status: "waiting",
       joinedAt: Date.now()
     });
-
-    console.log("✅ Joined");
-
   } catch (e) {
-    console.error("❌ Join error:", e);
-    alert(e.message);
+    console.error(e);
   }
 });
 
@@ -162,16 +190,11 @@ joinBtn.addEventListener("click", async () => {
 leaveBtn.addEventListener("click", async () => {
   if (!currentDocId) return;
 
-  try {
-    await deleteDoc(doc(db, "queue", currentDocId));
-    console.log("✅ Left queue");
-  } catch (e) {
-    console.error(e);
-  }
+  await deleteDoc(doc(db, "queue", currentDocId));
 });
 
 //////////////////////////////
-// REALTIME LISTENER
+// REALTIME
 //////////////////////////////
 
 onSnapshot(query(queueCol, orderBy("position")), snap => {
@@ -220,38 +243,26 @@ function render(items, me) {
       li.textContent += " (bezig)";
     }
 
-    //////////////////////
-    // USER ACTIONS
-    //////////////////////
-
+    // USER ACTIES
     if (item.id === currentDocId) {
 
-      // START
       if (i <= 1) {
         const startBtn = document.createElement("button");
         startBtn.textContent = "Start";
-
-        startBtn.onclick = async () => {
-          await updateDoc(doc(db, "queue", item.id), {
+        startBtn.onclick = () =>
+          updateDoc(doc(db, "queue", item.id), {
             status: "active",
             joinedAt: Date.now()
           });
-        };
-
         li.appendChild(startBtn);
       }
 
-      // STOP
       const stopBtn = document.createElement("button");
       stopBtn.textContent = "Stop";
-
-      stopBtn.onclick = async () => {
-        await deleteDoc(doc(db, "queue", item.id));
-      };
-
+      stopBtn.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
       li.appendChild(stopBtn);
 
-      // LATER
       const laterBtn = document.createElement("button");
       laterBtn.textContent = "Later";
 
@@ -264,17 +275,12 @@ function render(items, me) {
       li.appendChild(laterBtn);
     }
 
-    //////////////////////
-    // ADMIN DELETE
-    //////////////////////
-
+    // ADMIN
     if (isAdmin) {
       const delBtn = document.createElement("button");
       delBtn.textContent = "X";
-
       delBtn.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
-
       li.appendChild(delBtn);
     }
 
@@ -282,7 +288,7 @@ function render(items, me) {
   });
 
   //////////////////////
-  // STATUS
+  // STATUS + NOTIFICATIE
   //////////////////////
 
   if (!me) {
@@ -297,7 +303,12 @@ function render(items, me) {
   const isTop = idx <= 1;
 
   if (isTop && me.status !== "active" && !notified) {
+
     notice.textContent = "👉 JE BENT AAN DE BEURT!";
+
+    // ✅ HIER gebeurt de popup
+    showNotification();
+
     notified = true;
   }
 
@@ -311,16 +322,11 @@ function render(items, me) {
 //////////////////////////////
 
 async function moveBack(item, items, index) {
-  try {
-    const next = items[index + 1];
+  const next = items[index + 1];
 
-    await updateDoc(doc(db, "queue", item.id), {
-      position: next.position + 1
-    });
-
-  } catch (e) {
-    console.error("❌ Move error:", e);
-  }
+  await updateDoc(doc(db, "queue", item.id), {
+    position: next.position + 1
+  });
 }
 
 //////////////////////////////
