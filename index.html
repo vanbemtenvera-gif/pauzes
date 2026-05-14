@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -5,10 +6,18 @@
 <title>Virtuele wachtrij</title>
 
 <style>
-body { font-family: sans-serif; max-width: 700px; margin: 20px auto; }
+body {
+  font-family: sans-serif;
+  max-width: 700px;
+  margin: 20px auto;
+}
 li { margin: 6px 0; }
 .me { background: #e3f2fd; }
-.notice { color: green; font-weight: bold; font-size: 18px; }
+.notice {
+  color: green;
+  font-weight: bold;
+  font-size: 18px;
+}
 button { margin-left: 5px; }
 </style>
 </head>
@@ -33,15 +42,18 @@ button { margin-left: 5px; }
 <p id="notice" class="notice"></p>
 
 <script type="module">
-import { initializeApp } from https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js;
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
   onSnapshot, query, orderBy, updateDoc
-} from https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js;
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ✅ Firebase
+//////////////////////////////
+// 🔥 FIREBASE CONFIG
+//////////////////////////////
+
 const firebaseConfig = {
-  apiKey: "AIzaSy...",
+  apiKey: "PASTE_HIER_JE_API_KEY",
   authDomain: "adem-in---adem-uit.firebaseapp.com",
   projectId: "adem-in---adem-uit"
 };
@@ -50,23 +62,42 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const queueCol = collection(db, "queue");
 
-// ✅ ADMIN
-const ADMIN_PASSWORD = "geheim123";
-let isAdmin = false;
+//////////////////////////////
+// STATE
+//////////////////////////////
 
-// ✅ STATE
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
+let isAdmin = false;
 let notified = false;
 
-// ✅ TAB STATUS
-let pageHidden = false;
-document.addEventListener("visibilitychange", () => {
-  pageHidden = document.hidden;
-});
+//////////////////////////////
+// CLIENT ID
+//////////////////////////////
 
-// ✅ TIMER formatter
+let clientId = localStorage.getItem("clientId");
+if (!clientId) {
+  clientId = "client_" + Math.random().toString(36).slice(2);
+  localStorage.setItem("clientId", clientId);
+}
+
+//////////////////////////////
+// UI
+//////////////////////////////
+
+const nameInput = document.getElementById("nameInput");
+const joinBtn = document.getElementById("joinBtn");
+const leaveBtn = document.getElementById("leaveBtn");
+const queueList = document.getElementById("queueList");
+const yourStatus = document.getElementById("yourStatus");
+const notice = document.getElementById("notice");
+const adminToggle = document.getElementById("adminToggle");
+
+//////////////////////////////
+// HELPERS
+//////////////////////////////
+
 function formatTime(ms) {
   const total = Math.floor(ms / 1000);
   const m = Math.floor(total / 60);
@@ -74,59 +105,18 @@ function formatTime(ms) {
   return `${m}:${s.toString().padStart(2,"0")}`;
 }
 
-// ✅ NOTIFICATIE PERMISSION
-if ("Notification" in window) {
-  Notification.requestPermission().catch(() => {});
-}
+//////////////////////////////
+// ADMIN LOGIN
+//////////////////////////////
 
-// ✅ NOTIFICATIE FUNCTIE
-function showNotification() {
+const ADMIN_PASSWORD = "geheim123";
 
-  // 🔔 browser popup
-  if ("Notification" in window && Notification.permission === "granted") {
-    new Notification("👉 JOUW BEURT!", {
-      body: "Je bent aan de beurt!"
-    });
-  }
-
-  // 🔄 titel knipperen
-  const original = document.title;
-
-  const interval = setInterval(() => {
-    document.title =
-      document.title === "👉 JOUW BEURT!"
-      ? original
-      : "👉 JOUW BEURT!";
-  }, 1000);
-
-  setTimeout(() => {
-    clearInterval(interval);
-    document.title = original;
-  }, 15000);
-}
-
-// ✅ CLIENT ID
-let clientId = localStorage.getItem("clientId");
-if (!clientId) {
-  clientId = "client_" + Math.random().toString(36).slice(2);
-  localStorage.setItem("clientId", clientId);
-}
-
-// UI
-const nameInput = document.getElementById("nameInput");
-const joinBtn = document.getElementById("joinBtn");
-const leaveBtn = document.getElementById("leaveBtn");
-const queueList = document.getElementById("queueList");
-const yourStatus = document.getElementById("yourStatus");
-const adminToggle = document.getElementById("adminToggle");
-const notice = document.getElementById("notice");
-
-// ✅ ADMIN LOGIN
 adminToggle.addEventListener("change", () => {
   if (adminToggle.checked) {
     const input = prompt("Admin wachtwoord:");
     if (input === ADMIN_PASSWORD) {
       isAdmin = true;
+      console.log("✅ Admin ingelogd");
     } else {
       adminToggle.checked = false;
     }
@@ -135,38 +125,68 @@ adminToggle.addEventListener("change", () => {
   }
 });
 
-// ✅ JOIN
+//////////////////////////////
+// JOIN
+//////////////////////////////
+
 joinBtn.addEventListener("click", async () => {
-  await addDoc(queueCol, {
-    clientId,
-    name: nameInput.value || "Anoniem",
-    position: Date.now(),
-    status: "waiting",
-    joinedAt: Date.now() // timer start
-  });
+
+  // ✅ voorkom dubbele join
+  const exists = lastItems.find(i => i.clientId === clientId);
+  if (exists) {
+    alert("Je zit al in de wachtrij");
+    return;
+  }
+
+  try {
+    await addDoc(queueCol, {
+      clientId,
+      name: nameInput.value || "Anoniem",
+      position: Date.now(),
+      status: "waiting",
+      joinedAt: Date.now()
+    });
+
+    console.log("✅ Joined");
+
+  } catch (e) {
+    console.error("❌ Join error:", e);
+    alert(e.message);
+  }
 });
 
-// ✅ LEAVE
+//////////////////////////////
+// LEAVE
+//////////////////////////////
+
 leaveBtn.addEventListener("click", async () => {
   if (!currentDocId) return;
-  await deleteDoc(doc(db, "queue", currentDocId));
+
+  try {
+    await deleteDoc(doc(db, "queue", currentDocId));
+    console.log("✅ Left queue");
+  } catch (e) {
+    console.error(e);
+  }
 });
 
-// ✅ REALTIME
+//////////////////////////////
+// REALTIME LISTENER
+//////////////////////////////
+
 onSnapshot(query(queueCol, orderBy("position")), snap => {
 
   const items = [];
   let me = null;
 
   snap.forEach(d => {
-    const data = d.data();
+    const item = { id: d.id, ...d.data() };
+    items.push(item);
 
-    if (data.clientId === clientId) {
+    if (item.clientId === clientId) {
       currentDocId = d.id;
-      me = { id: d.id, ...data };
+      me = item;
     }
-
-    items.push({ id: d.id, ...data });
   });
 
   lastItems = items;
@@ -175,7 +195,10 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
   render(items, me);
 });
 
-// ✅ RENDER
+//////////////////////////////
+// RENDER
+//////////////////////////////
+
 function render(items, me) {
 
   queueList.innerHTML = "";
@@ -197,85 +220,113 @@ function render(items, me) {
       li.textContent += " (bezig)";
     }
 
-    // ✅ acties eigen user
+    //////////////////////
+    // USER ACTIONS
+    //////////////////////
+
     if (item.id === currentDocId) {
 
-      if (i === 0 || i === 1) {
-        const start = document.createElement("button");
-        start.textContent = "Start";
-        start.onclick = () =>
-          updateDoc(doc(db, "queue", item.id), {
+      // START
+      if (i <= 1) {
+        const startBtn = document.createElement("button");
+        startBtn.textContent = "Start";
+
+        startBtn.onclick = async () => {
+          await updateDoc(doc(db, "queue", item.id), {
             status: "active",
-            joinedAt: Date.now() // reset timer
+            joinedAt: Date.now()
           });
-        li.appendChild(start);
+        };
+
+        li.appendChild(startBtn);
       }
 
-      const stop = document.createElement("button");
-      stop.textContent = "Stop";
-      stop.onclick = () =>
-        deleteDoc(doc(db, "queue", item.id));
-      li.appendChild(stop);
+      // STOP
+      const stopBtn = document.createElement("button");
+      stopBtn.textContent = "Stop";
 
-      const back = document.createElement("button");
-      back.textContent = "Later";
+      stopBtn.onclick = async () => {
+        await deleteDoc(doc(db, "queue", item.id));
+      };
+
+      li.appendChild(stopBtn);
+
+      // LATER
+      const laterBtn = document.createElement("button");
+      laterBtn.textContent = "Later";
 
       if (i < items.length - 1 && item.status !== "active") {
-        back.onclick = () => moveBackOne(item, items, i);
+        laterBtn.onclick = () => moveBack(item, items, i);
       } else {
-        back.disabled = true;
+        laterBtn.disabled = true;
       }
 
-      li.appendChild(back);
+      li.appendChild(laterBtn);
     }
 
-    // admin delete
+    //////////////////////
+    // ADMIN DELETE
+    //////////////////////
+
     if (isAdmin) {
-      const del = document.createElement("button");
-      del.textContent = "X";
-      del.onclick = () =>
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "X";
+
+      delBtn.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
-      li.appendChild(del);
+
+      li.appendChild(delBtn);
     }
 
     queueList.appendChild(li);
   });
 
-  // ✅ STATUS + NOTIFICATIES
+  //////////////////////
+  // STATUS
+  //////////////////////
+
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
     notified = false;
-  } else {
-    const idx = items.findIndex(x => x.id === me.id);
-    yourStatus.textContent = `Positie: ${idx + 1}`;
+    return;
+  }
 
-    const isTop = idx === 0 || idx === 1;
+  const idx = items.findIndex(x => x.id === me.id);
+  yourStatus.textContent = `Positie: ${idx + 1}`;
 
-    if (isTop && me.status !== "active" && !notified) {
+  const isTop = idx <= 1;
 
-      notice.textContent = "👉 JE BENT AAN DE BEURT! ⏱️";
+  if (isTop && me.status !== "active" && !notified) {
+    notice.textContent = "👉 JE BENT AAN DE BEURT!";
+    notified = true;
+  }
 
-      showNotification(); // ✅ ALTIJD triggeren
-
-      notified = true;
-    }
-
-    if (!isTop) {
-      notified = false;
-    }
+  if (!isTop) {
+    notified = false;
   }
 }
 
-// ✅ LATER
-async function moveBackOne(item, items, index) {
-  const nextItem = items[index + 1];
+//////////////////////////////
+// MOVE BACK
+//////////////////////////////
 
-  await updateDoc(doc(db, "queue", item.id), {
-    position: nextItem.position + 1
-  });
+async function moveBack(item, items, index) {
+  try {
+    const next = items[index + 1];
+
+    await updateDoc(doc(db, "queue", item.id), {
+      position: next.position + 1
+    });
+
+  } catch (e) {
+    console.error("❌ Move error:", e);
+  }
 }
 
-// ✅ TIMER REFRESH (belangrijk!)
+//////////////////////////////
+// TIMER REFRESH
+//////////////////////////////
+
 setInterval(() => {
   if (lastItems.length > 0) {
     render(lastItems, lastMe);
@@ -283,5 +334,6 @@ setInterval(() => {
 }, 1000);
 
 </script>
+
 </body>
 </html>
