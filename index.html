@@ -85,7 +85,6 @@ const sound = new Audio(
 );
 
 let soundEnabled = false;
-
 document.addEventListener("click", () => {
   if (!soundEnabled) {
     sound.play().then(() => {
@@ -120,8 +119,17 @@ if (!clientId) {
 }
 
 //////////////////////////////
-// ADMIN
+// UI ELEMENTEN
 //////////////////////////////
+
+const nameInput = document.getElementById("nameInput");
+const joinBtn = document.getElementById("joinBtn");
+const leaveBtn = document.getElementById("leaveBtn");
+
+const queueList = document.getElementById("queueList");
+const yourStatus = document.getElementById("yourStatus");
+const notice = document.getElementById("notice");
+const activeInfo = document.getElementById("activeInfo");
 
 const adminToggle = document.getElementById("adminToggle");
 const adminControls = document.getElementById("adminControls");
@@ -129,12 +137,32 @@ const increaseSlot = document.getElementById("increaseSlot");
 const decreaseSlot = document.getElementById("decreaseSlot");
 const slotCount = document.getElementById("slotCount");
 
+//////////////////////////////
+// ✅ ADMIN FIX (BELANGRIJK)
+//////////////////////////////
+
 adminToggle.onchange = () => {
-  if (prompt("Wachtwoord") === "admin123") {
-    isAdmin = true;
-    adminControls.style.display = "block";
+
+  if (adminToggle.checked) {
+
+    if (prompt("Wachtwoord") === "admin123") {
+      isAdmin = true;
+      adminControls.style.display = "block";
+
+      // 🔥 FIX → direct render
+      if (lastItems.length) render(lastItems, lastMe);
+
+    } else {
+      adminToggle.checked = false;
+    }
+
   } else {
-    adminToggle.checked = false;
+
+    isAdmin = false;
+    adminControls.style.display = "none";
+
+    // 🔥 FIX → render bij uitschakelen
+    if (lastItems.length) render(lastItems, lastMe);
   }
 };
 
@@ -149,14 +177,12 @@ onSnapshot(configDoc, snap => {
     slots = snap.data().slots;
     slotCount.textContent = "Slots: " + slots;
 
-    if (lastItems.length) {
-      render(lastItems, lastMe);
-    }
+    if (lastItems.length) render(lastItems, lastMe);
   }
 });
 
 //////////////////////////////
-// 🔼🔽 STABIELE VERPLAATSING
+// ✅ STABIELE VERPLAATSING
 //////////////////////////////
 
 async function moveUp(item, items, i) {
@@ -185,11 +211,8 @@ async function moveDown(item, items, i) {
 // JOIN / LEAVE
 //////////////////////////////
 
-const nameInput = document.getElementById("nameInput");
-const joinBtn = document.getElementById("joinBtn");
-const leaveBtn = document.getElementById("leaveBtn");
-
 joinBtn.onclick = async () => {
+
   if (lastItems.find(i => i.clientId === clientId)) {
     return alert("Je zit al in wachtrij");
   }
@@ -236,11 +259,6 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 // RENDER
 //////////////////////////////
 
-const queueList = document.getElementById("queueList");
-const yourStatus = document.getElementById("yourStatus");
-const notice = document.getElementById("notice");
-const activeInfo = document.getElementById("activeInfo");
-
 function render(items, me) {
 
   queueList.innerHTML = "";
@@ -251,7 +269,6 @@ function render(items, me) {
   items.forEach((item, i) => {
 
     const li = document.createElement("li");
-
     li.textContent = `${i + 1}. ${item.name}`;
 
     if (item.status === "active") {
@@ -261,7 +278,7 @@ function render(items, me) {
 
     if (item.id === currentDocId) li.classList.add("me");
 
-    // USER
+    // 👤 USER
     if (item.id === currentDocId) {
 
       const canStart =
@@ -291,7 +308,7 @@ function render(items, me) {
       li.appendChild(laterBtn);
     }
 
-    // ADMIN
+    // 👨‍💼 ADMIN
     if (isAdmin) {
 
       const upBtn = document.createElement("button");
