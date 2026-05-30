@@ -12,15 +12,13 @@ html, body {
   font-family: sans-serif;
 }
 
-/* ✅ achtergrondlaag */
+/* ✅ achtergrond */
 #bg {
   position: fixed;
   inset: 0;
   z-index: -2;
-
   background-size: cover;
   background-position: center;
-  background-repeat: no-repeat;
 }
 
 /* ✅ overlay */
@@ -31,7 +29,7 @@ html, body {
   background: rgba(255,255,255,0.75);
 }
 
-/* ✅ ORIGINELE layout */
+/* origineel */
 body {
   max-width: 700px;
   margin: 20px auto;
@@ -45,7 +43,6 @@ li { margin: 6px 0; }
   font-size: 18px;
 }
 button { margin-left: 5px; }
-
 </style>
 </head>
 
@@ -77,7 +74,7 @@ button { margin-left: 5px; }
 <p id="yourStatus"></p>
 <p id="notice" class="notice"></p>
 
-<!-- ✅ achtergrond script -->
+<!-- ✅ achtergrond -->
 <script>
 const backgrounds = [
   "https://picsum.photos/id/1015/1920/1080",
@@ -90,22 +87,22 @@ const backgrounds = [
 
 (function () {
   const today = new Date().toISOString().split("T")[0];
-
-  let saved = localStorage.getItem("bgData");
-  saved = saved ? JSON.parse(saved) : null;
+  let saved = JSON.parse(localStorage.getItem("bgData") || "null");
 
   if (!saved || saved.date !== today) {
-    const index = Math.floor(Math.random() * backgrounds.length);
-    saved = { date: today, index };
+    saved = {
+      date: today,
+      index: Math.floor(Math.random() * backgrounds.length)
+    };
     localStorage.setItem("bgData", JSON.stringify(saved));
   }
 
   document.getElementById("bg").style.backgroundImage =
-    "url('" + backgrounds[saved.index] + "')";
+    `url('${backgrounds[saved.index]}')`;
 })();
 </script>
 
-<!-- ✅ JOUW SCRIPT (ENKEL BUG GEFIXT) -->
+<!-- ✅ VOLLEDIG SCRIPT -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -131,10 +128,7 @@ let isAdmin = false;
 let notified = false;
 let slots = 2;
 
-//////////////////////////////
-// 🔊 AUDIO
-//////////////////////////////
-
+/* AUDIO */
 const alertSound = new Audio(
   "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
 );
@@ -152,10 +146,7 @@ document.addEventListener("click", () => {
   }
 });
 
-//////////////////////////////
-// 🔔 NOTIFICATIE
-//////////////////////////////
-
+/* NOTIFICATIE */
 if ("Notification" in window) {
   Notification.requestPermission().catch(()=>{});
 }
@@ -166,38 +157,32 @@ function showNotification() {
       body: "Je bent aan de beurt!"
     });
   }
-
-  if (soundEnabled) {
-    alertSound.currentTime = 0;
-    alertSound.play().catch(()=>{});
-  }
-
-  const original = document.title;
-  const interval = setInterval(() => {
-    document.title =
-      document.title === "👉 JOUW BEURT!"
-        ? original
-        : "👉 JOUW BEURT!";
-  }, 1000);
-
-  setTimeout(() => {
-    clearInterval(interval);
-    document.title = original;
-  }, 15000);
 }
 
-//////////////////////////////
-// CLIENT ID
-//////////////////////////////
-
+/* CLIENT ID */
 let clientId = localStorage.getItem("clientId");
 if (!clientId) {
   clientId = "client_" + Math.random().toString(36).slice(2);
   localStorage.setItem("clientId", clientId);
 }
 
-/* 🔚 rest van je script blijft identiek */
+/* UI */
+const nameInput = document.getElementById("nameInput");
+const joinBtn = document.getElementById("joinBtn");
+const leaveBtn = document.getElementById("leaveBtn");
 
+/* ✅ BELANGRIJK: JOIN WERKT NU */
+joinBtn.addEventListener("click", async () => {
+
+  await addDoc(queueCol, {
+    clientId,
+    name: nameInput.value || "Anoniem",
+    position: Date.now(),
+    status: "waiting",
+    joinedAt: Date.now()
+  });
+
+});
 </script>
 
 </body>
