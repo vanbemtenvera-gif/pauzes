@@ -13,15 +13,20 @@ body {
 }
 li { margin: 6px 0; }
 .me { background: #e3f2fd; }
-.active {
-  color: red;
-  font-weight: bold;
-}
-.notice {
-  color: green;
-  font-weight: bold;
-}
+.active { color: red; font-weight: bold; }
+.notice { color: green; font-weight: bold; }
 button { margin-left: 5px; }
+#errorBox {
+  position: fixed;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  background: #ffebee;
+  border: 1px solid red;
+  padding: 10px;
+  z-index: 9999;
+  font-size: 14px;
+}
 </style>
 </head>
 
@@ -45,292 +50,14 @@ button { margin-left: 5px; }
   <button id="increaseSlot">+</button>
 </div>
 
-<p id="activeInfo" class="active"></p>
+<p id="activeInfo"></p>
 
 <ul id="queueList"></ul>
 <p id="yourStatus"></p>
 <p id="notice" class="notice"></p>
 
-<script type="module">
+<div id="errorBox"></div>
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-  getFirestore, collection, addDoc, doc, deleteDoc,
-  onSnapshot, query, orderBy, updateDoc, setDoc
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-const app = initializeApp({
-  apiKey: "PASTE_HIER_JE_API_KEY",
-  authDomain: "adem-in---adem-uit.firebaseapp.com",
-  projectId: "adem-in---adem-uit"
-});
-
-const db = getFirestore(app);
-const queueCol = collection(db, "queue");
-const configDoc = doc(db, "config", "settings");
-
-let currentDocId = null;
-let lastItems = [];
-let lastMe = null;
-let slots = 1;
-let isAdmin = false;
-let wasTurn = false;
-
-//////////////////////////////
-// 🔔 NOTIFICATIE
-//////////////////////////////
-
-const sound = new Audio("https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3");
-
-let soundEnabled = false;
-document.addEventListener("click", () => {
-  if (!soundEnabled) {
-    sound.play().then(() => {
-      sound.pause();
-      soundEnabled = true;
-    }).catch(()=>{});
-  }
-});
-
-if ("Notification" in window) {
-  Notification.requestPermission();
-}
-
-function notify() {
-  if (Notification.permission === "granted") {
-    new Notification("👉 JIJ BENT AAN DE BEURT!");
-  }
-  if (soundEnabled) {
-    sound.currentTime = 0;
-    sound.play();
-  }
-}
-
-//////////////////////////////
-// CLIENT ID
-//////////////////////////////
-
-let clientId = localStorage.getItem("clientId");
-if (!clientId) {
-  clientId = "client_" + Math.random().toString(36);
-  localStorage.setItem("clientId", clientId);
-}
-
-//////////////////////////////
-// ADMIN TOGGLE (FIX)
-//////////////////////////////
-
-adminToggle.onchange = () => {
-  if (adminToggle.checked) {
-    if (prompt("Wachtwoord") === "admin123") {
-      isAdmin = true;
-      adminControls.style.display = "block";
-    } else {
-      adminToggle.checked = false;
-    }
-  } else {
-    isAdmin = false;
-    adminControls.style.display = "none";
-  }
-
-  if (lastItems.length) render(lastItems, lastMe);
-};
-
-increaseSlot.onclick = () => setDoc(configDoc, { slots: slots + 1 });
-decreaseSlot.onclick = () => {
-  if (slots > 1) setDoc(configDoc, { slots: slots - 1 });
-};
-
-onSnapshot(configDoc, snap => {
-  if (snap.exists()) {
-    slots = snap.data().slots;
-    slotCount.textContent = "Slots: " + slots;
-
-    if (lastItems.length) render(lastItems, lastMe);
-  }
-});
-
-//////////////////////////////
-// ✅ 🔥 NIEUWE VERPLAATSING
-//////////////////////////////
-
-async function reorderAndSave(newItems) {
-  for (let i = 0; i < newItems.length; i++) {
-    await updateDoc(doc(db, "queue", newItems[i].id), {
-      position: i
-    });
-  }
-}
-
-async function moveUp(item, items, i) {
-  if (i === 0) return;
-
-  const newItems = [...items];
-  [newItems[i - 1], newItems[i]] = [newItems[i], newItems[i - 1]];
-
-  await reorderAndSave(newItems);
-}
-
-async function moveDown(item, items, i) {
-  if (i === items.length - 1) return;
-
-  const newItems = [...items];
-  [newItems[i + 1], newItems[i]] = [newItems[i], newItems[i + 1]];
-
-  await reorderAndSave(newItems);
-}
-
-//////////////////////////////
-// JOIN / LEAVE
-//////////////////////////////
-
-joinBtn.onclick = async () => {
-
-  if (lastItems.find(i => i.clientId === clientId)) {
-    return alert("Je zit al in wachtrij");
-  }
-
-  await addDoc(queueCol, {
-    clientId,
-    name: nameInput.value || "Anoniem",
-    position: Date.now(),
-    status: "waiting",
-    joinedAt: Date.now()
-  });
-};
-
-leaveBtn.onclick = () => {
-  if (currentDocId) deleteDoc(doc(db, "queue", currentDocId));
-};
-
-//////////////////////////////
-// REALTIME
-//////////////////////////////
-
-onSnapshot(query(queueCol, orderBy("position")), snap => {
-
-  const items = [];
-  let me = null;
-
-  snap.forEach(d => {
-    const item = { id: d.id, ...d.data() };
-    items.push(item);
-
-    if (item.clientId === clientId) {
-      currentDocId = d.id;
-      me = item;
-    }
-  });
-
-  lastItems = items;
-  lastMe = me;
-
-  render(items, me);
-});
-
-//////////////////////////////
-// RENDER
-//////////////////////////////
-
-function render(items, me) {
-
-  queueList.innerHTML = "";
-  notice.textContent = "";
-
-  const activeCount = items.filter(i => i.status === "active").length;
-
-  items.forEach((item, i) => {
-
-    const li = document.createElement("li");
-
-    li.textContent = `${i + 1}. ${item.name}`;
-
-    if (item.status === "active") {
-      li.textContent += " (bezig)";
-      li.classList.add("active");
-    }
-
-    if (item.id === currentDocId) li.classList.add("me");
-
-    if (item.id === currentDocId) {
-
-      const canStart =
-        i < slots &&
-        item.status !== "active" &&
-        activeCount < slots;
-
-      if (canStart) {
-        const startBtn = document.createElement("button");
-        startBtn.textContent = "Start";
-        startBtn.onclick = () =>
-          updateDoc(doc(db, "queue", item.id), {
-            status: "active"
-          });
-        li.appendChild(startBtn);
-      }
-
-      const stopBtn = document.createElement("button");
-      stopBtn.textContent = "Stop";
-      stopBtn.onclick = () =>
-        deleteDoc(doc(db, "queue", item.id));
-      li.appendChild(stopBtn);
-
-      const laterBtn = document.createElement("button");
-      laterBtn.textContent = "Later";
-      laterBtn.onclick = () => moveDown(item, items, i);
-      li.appendChild(laterBtn);
-    }
-
-    if (isAdmin) {
-
-      const upBtn = document.createElement("button");
-      upBtn.textContent = "↑";
-      upBtn.onclick = () => moveUp(item, items, i);
-
-      const downBtn = document.createElement("button");
-      downBtn.textContent = "↓";
-      downBtn.onclick = () => moveDown(item, items, i);
-
-      const delBtn = document.createElement("button");
-      delBtn.textContent = "X";
-      delBtn.onclick = () =>
-        deleteDoc(doc(db, "queue", item.id));
-
-      li.appendChild(upBtn);
-      li.appendChild(downBtn);
-      li.appendChild(delBtn);
-    }
-
-    queueList.appendChild(li);
-  });
-
-  activeInfo.textContent =
-    activeCount ? `🔥 ${activeCount}/${slots} bezig` : "";
-
-  if (!me) {
-    yourStatus.textContent = "Niet in wachtrij";
-    wasTurn = false;
-    return;
-  }
-
-  const idx = items.findIndex(i => i.id === me.id);
-
-  const isTurn =
-    idx < slots &&
-    me.status !== "active" &&
-    activeCount < slots;
-
-  if (isTurn && !wasTurn) {
-    notify();
-    notice.textContent = "👉 JE BENT AAN DE BEURT!";
-  }
-
-  wasTurn = isTurn;
-
-  yourStatus.textContent = "Positie: " + (idx + 1);
-}
-
-</script>
-
+<script type="module" src="app.js"></script>
 </body>
 </html>
