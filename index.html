@@ -6,28 +6,82 @@
 <title>Virtuele wachtrij</title>
 
 <style>
+
 body {
   font-family: sans-serif;
   max-width: 700px;
   margin: 20px auto;
+
+  /* ✅ achtergrond */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  color: white;
 }
-li { margin: 6px 0; }
-.me { background: #e3f2fd; }
-.active { color: red; font-weight: bold; }
-.notice { color: green; font-weight: bold; }
-button { margin-left: 5px; }
-#errorBox {
+
+/* ✅ overlay (leesbaarheid) */
+body::before {
+  content: "";
   position: fixed;
-  bottom: 10px;
-  left: 10px;
-  right: 10px;
-  background: #ffebee;
-  border: 1px solid red;
-  padding: 10px;
-  z-index: 9999;
-  font-size: 14px;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    rgba(0,0,0,0.6),
+    rgba(0,0,0,0.75)
+  );
+  z-index: -1;
 }
+
+/* ✅ UI styling blijft zichtbaar */
+li { margin: 6px 0; }
+
+.me { background: rgba(227,242,253,0.15); }
+
+.active {
+  color: #ff8a80;
+  font-weight: bold;
+}
+
+.notice {
+  color: #69f0ae;
+  font-weight: bold;
+}
+
+button {
+  margin-left: 5px;
+}
+
+/* ✅ zorg dat alles boven overlay ligt */
+ul, p, input, button, h1, label, div {
+  position: relative;
+  z-index: 1;
+}
+
+/* 🔥 optioneel: knoppen iets duidelijker */
+button {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+input {
+  padding: 4px;
+  border-radius: 6px;
+  border: none;
+}
+
 </style>
+
 </head>
 
 <body>
@@ -41,10 +95,11 @@ button { margin-left: 5px; }
 <br><br>
 
 <label>
-  <input type="checkbox" id="adminToggle"> Admin modus
+  <input type="checkbox" id="adminToggle">
+  Admin modus
 </label>
 
-<div id="adminControls" style="display:none;">
+<div id="adminControls" style="display:none; margin-top:10px;">
   <button id="decreaseSlot">-</button>
   <span id="slotCount">Slots: 1</span>
   <button id="increaseSlot">+</button>
@@ -53,11 +108,35 @@ button { margin-left: 5px; }
 <p id="activeInfo"></p>
 
 <ul id="queueList"></ul>
+
 <p id="yourStatus"></p>
 <p id="notice" class="notice"></p>
 
-<div id="errorBox"></div>
+<!-- ✅ DAGELIJKSE BACKGROUND -->
+<script>
+(function() {
 
+  const today = new Date();
+  const day = today.getDate();
+
+  const images = [
+    "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
+    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee",
+    "https://images.unsplash.com/photo-1469474968028-56623f02e42e",
+    "https://images.unsplash.com/photo-1501785888041-af3ef285b470",
+    "https://images.unsplash.com/photo-1493244040629-496f6d136cc3"
+  ];
+
+  const index = day % images.length;
+
+  document.body.style.backgroundImage =
+    `url(${images[index]}?auto=format&fit=crop&w=1600&q=80)`;
+
+})();
+</script>
+
+<!-- ✅ APP LOGICA -->
 <script type="module" src="app.js"></script>
+
 </body>
 </html>
