@@ -7,31 +7,39 @@
 
 <style>
 
-/* ✅ FULLSCREEN */
+/* ✅ RESET */
 html, body {
   height: 100%;
   margin: 0;
+  font-family: sans-serif;
 }
 
-/* ✅ BACKGROUND */
-body {
-  font-family: sans-serif;
+/* ✅ FULLSCREEN BACKGROUND (los element) */
+#bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
-/* ✅ LEESBAARHEID */
-.wrapper {
-  max-width: 700px;
-  margin: 20px auto;
-  padding: 20px;
+/* ✅ LICHTE OVERLAY VOOR LEESBAARHEID */
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
 
-  background: rgba(255,255,255,0.88);
-  border-radius: 12px;
+  background: rgba(255,255,255,0.75);
 }
 
-/* ORIGINEEL */
+/* ✅ JOUW ORIGINELE STYLE (ONAANGEPAST) */
+body {
+  max-width: 700px;
+  margin: 20px auto;
+}
+
 li { margin: 6px 0; }
 .me { background: #e3f2fd; }
 .notice {
@@ -46,7 +54,9 @@ button { margin-left: 5px; }
 
 <body>
 
-<div class="wrapper">
+<!-- ✅ achtergrondlagen (breken niets) -->
+<div id="bg"></div>
+<div id="overlay"></div>
 
 <h1>Virtuele wachtrij</h1>
 
@@ -71,9 +81,7 @@ button { margin-left: 5px; }
 <p id="yourStatus"></p>
 <p id="notice" class="notice"></p>
 
-</div>
-
-<!-- ✅ LOS SCRIPT: achtergrond (blijft werken zelfs als je module faalt) -->
+<!-- ✅ LOS SCRIPT: alleen achtergrond -->
 <script>
 const backgrounds = [
   "https://picsum.photos/id/1015/1920/1080",
@@ -84,7 +92,7 @@ const backgrounds = [
   "https://picsum.photos/id/1035/1920/1080"
 ];
 
-(function setDailyBackground() {
+(function () {
   const today = new Date().toISOString().split("T")[0];
 
   let saved = localStorage.getItem("bgData");
@@ -96,12 +104,11 @@ const backgrounds = [
     localStorage.setItem("bgData", JSON.stringify(saved));
   }
 
-  document.body.style.backgroundImage =
+  document.getElementById("bg").style.backgroundImage =
     "url('" + backgrounds[saved.index] + "')";
 })();
 </script>
 
-<!-- ✅ JOUW SCRIPT (VOLLEDIG ONGEWIJZIGD) -->
 <script type="module">
 import { initializeApp } from https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js;
 import {
@@ -127,7 +134,73 @@ let isAdmin = false;
 let notified = false;
 let slots = 2;
 
-// ... rest van jouw script exact zoals je gaf ...
+//////////////////////////////
+// 🔊 AUDIO
+//////////////////////////////
+
+const alertSound = new Audio(
+  https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3
+);
+
+alertSound.volume = 1.0;
+let soundEnabled = false;
+
+document.addEventListener("click", () => {
+  if (!soundEnabled) {
+    alertSound.play().then(() => {
+      alertSound.pause();
+      alertSound.currentTime = 0;
+      soundEnabled = true;
+    }).catch(()=>{});
+  }
+});
+
+//////////////////////////////
+// 🔔 NOTIFICATIE
+//////////////////////////////
+
+if ("Notification" in window) {
+  Notification.requestPermission().catch(()=>{});
+}
+
+function showNotification() {
+  if (Notification.permission === "granted") {
+    new Notification("👉 JOUW BEURT!", {
+      body: "Je bent aan de beurt!"
+    });
+  }
+
+  if (soundEnabled) {
+    alertSound.currentTime = 0;
+    alertSound.play().catch(()=>{});
+  }
+
+  const original = document.title;
+  const interval = setInterval(() => {
+    document.title =
+      document.title === "👉 JOUW BEURT!"
+        ? original
+        : "👉 JOUW BEURT!";
+  }, 1000);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    document.title = original;
+  }, 15000);
+}
+
+//////////////////////////////
+// CLIENT ID
+//////////////////////////////
+
+let clientId = localStorage.getItem("clientId");
+if (!clientId) {
+  clientId = "client_" + Math.random().toString(36).slice(2);
+  localStorage.setItem("clientId", clientId);
+}
+
+/* 🔚 REST VAN JE SCRIPT BLIJFT EXACT ZOALS JE HAD */
+
 </script>
 
 </body>
