@@ -7,29 +7,28 @@
 
 <style>
 
-/* ✅ FIX: full page achtergrond */
+/* ✅ FULLSCREEN */
 html, body {
   height: 100%;
   margin: 0;
 }
 
-/* ✅ ACHTERGROND */
+/* ✅ BACKGROUND */
 body {
   font-family: sans-serif;
-
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
-/* ✅ OUDE layout vervangen door container */
-.container {
+/* ✅ LEESBAARHEID */
+.wrapper {
   max-width: 700px;
   margin: 20px auto;
   padding: 20px;
 
-  background: rgba(255,255,255,0.9);
-  border-radius: 10px;
+  background: rgba(255,255,255,0.88);
+  border-radius: 12px;
 }
 
 /* ORIGINEEL */
@@ -47,7 +46,7 @@ button { margin-left: 5px; }
 
 <body>
 
-<div class="container">
+<div class="wrapper">
 
 <h1>Virtuele wachtrij</h1>
 
@@ -74,9 +73,8 @@ button { margin-left: 5px; }
 
 </div>
 
-<script type="module">
-
-/* ✅ DAGELIJKSE ACHTERGROND (WERKEND) */
+<!-- ✅ LOS SCRIPT: achtergrond (blijft werken zelfs als je module faalt) -->
+<script>
 const backgrounds = [
   "https://picsum.photos/id/1015/1920/1080",
   "https://picsum.photos/id/1016/1920/1080",
@@ -86,10 +84,11 @@ const backgrounds = [
   "https://picsum.photos/id/1035/1920/1080"
 ];
 
-function setDailyBackground() {
+(function setDailyBackground() {
   const today = new Date().toISOString().split("T")[0];
 
-  let saved = JSON.parse(localStorage.getItem("bgData"));
+  let saved = localStorage.getItem("bgData");
+  saved = saved ? JSON.parse(saved) : null;
 
   if (!saved || saved.date !== today) {
     const index = Math.floor(Math.random() * backgrounds.length);
@@ -98,13 +97,12 @@ function setDailyBackground() {
   }
 
   document.body.style.backgroundImage =
-    `url('${backgrounds[saved.index]}')`;
-}
+    "url('" + backgrounds[saved.index] + "')";
+})();
+</script>
 
-setDailyBackground();
-
-/* ✅ VANAF HIER: JOUW SCRIPT (NIET AANGEPAST) */
-
+<!-- ✅ JOUW SCRIPT (VOLLEDIG ONGEWIJZIGD) -->
+<script type="module">
 import { initializeApp } from https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js;
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
@@ -129,8 +127,7 @@ let isAdmin = false;
 let notified = false;
 let slots = 2;
 
-/* ... jouw script loopt hier verder volledig identiek ... */
-
+// ... rest van jouw script exact zoals je gaf ...
 </script>
 
 </body>
