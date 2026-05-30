@@ -54,10 +54,6 @@ import {
   onSnapshot, query, orderBy, updateDoc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-//////////////////////////////
-// FIREBASE
-//////////////////////////////
-
 const firebaseConfig = {
   apiKey: "PASTE_HIER_JE_API_KEY",
   authDomain: "adem-in---adem-uit.firebaseapp.com",
@@ -69,10 +65,6 @@ const db = getFirestore(app);
 const queueCol = collection(db, "queue");
 const configDoc = doc(db, "config", "settings");
 
-//////////////////////////////
-// STATE
-//////////////////////////////
-
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
@@ -81,7 +73,7 @@ let notified = false;
 let slots = 2;
 
 //////////////////////////////
-// 🔊 iPHONE RINGTONE
+// 🔊 AUDIO
 //////////////////////////////
 
 const alertSound = new Audio(
@@ -89,20 +81,15 @@ const alertSound = new Audio(
 );
 
 alertSound.volume = 1.0;
-
 let soundEnabled = false;
 
-// ✅ Audio unlock (CRUCIAAL)
 document.addEventListener("click", () => {
   if (!soundEnabled) {
-    alertSound.play()
-      .then(() => {
-        alertSound.pause();
-        alertSound.currentTime = 0;
-        soundEnabled = true;
-        console.log("✅ Audio geactiveerd");
-      })
-      .catch(() => {});
+    alertSound.play().then(() => {
+      alertSound.pause();
+      alertSound.currentTime = 0;
+      soundEnabled = true;
+    }).catch(()=>{});
   }
 });
 
@@ -111,27 +98,22 @@ document.addEventListener("click", () => {
 //////////////////////////////
 
 if ("Notification" in window) {
-  Notification.requestPermission().catch(() => {});
+  Notification.requestPermission().catch(()=>{});
 }
 
 function showNotification() {
-
-  // 🔔 popup
   if (Notification.permission === "granted") {
     new Notification("👉 JOUW BEURT!", {
       body: "Je bent aan de beurt!"
     });
   }
 
-  // 🔊 iPhone geluid
   if (soundEnabled) {
     alertSound.currentTime = 0;
-    alertSound.play().catch(() => {});
+    alertSound.play().catch(()=>{});
   }
 
-  // 🔄 titel knipper
   const original = document.title;
-
   const interval = setInterval(() => {
     document.title =
       document.title === "👉 JOUW BEURT!"
@@ -222,11 +204,32 @@ onSnapshot(configDoc, snap => {
 });
 
 //////////////////////////////
+// 🔼🔽 ADMIN MOVE
+//////////////////////////////
+
+async function moveUp(item, items, index) {
+  if (index === 0) return;
+  const prev = items[index - 1];
+
+  await updateDoc(doc(db, "queue", item.id), {
+    position: prev.position - 0.1
+  });
+}
+
+async function moveDown(item, items, index) {
+  if (index === items.length - 1) return;
+  const next = items[index + 1];
+
+  await updateDoc(doc(db, "queue", item.id), {
+    position: next.position + 0.1
+  });
+}
+
+//////////////////////////////
 // JOIN
 //////////////////////////////
 
 joinBtn.addEventListener("click", async () => {
-
   const exists = lastItems.find(i => i.clientId === clientId);
   if (exists) {
     alert("Je zit al in de wachtrij");
@@ -277,19 +280,6 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 });
 
 //////////////////////////////
-// MOVE BACK
-//////////////////////////////
-
-async function moveBack(item, items, index) {
-  const next = items[index + 1];
-  if (!next) return;
-
-  await updateDoc(doc(db, "queue", item.id), {
-    position: next.position + 0.5
-  });
-}
-
-//////////////////////////////
 // RENDER
 //////////////////////////////
 
@@ -314,6 +304,29 @@ function render(items, me) {
       li.textContent += " (bezig)";
     }
 
+    // ✅ ADMIN KNOPPEN
+    if (isAdmin) {
+      const upBtn = document.createElement("button");
+      upBtn.textContent = "↑";
+      upBtn.onclick = () => moveUp(item, items, i);
+      if (i === 0) upBtn.disabled = true;
+
+      const downBtn = document.createElement("button");
+      downBtn.textContent = "↓";
+      downBtn.onclick = () => moveDown(item, items, i);
+      if (i === items.length - 1) downBtn.disabled = true;
+
+      li.appendChild(upBtn);
+      li.appendChild(downBtn);
+
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "X";
+      delBtn.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
+      li.appendChild(delBtn);
+    }
+
+    // ✅ EIGEN USER KNOPPEN
     if (item.id === currentDocId) {
 
       if (i < slots) {
@@ -337,20 +350,12 @@ function render(items, me) {
       laterBtn.textContent = "Later";
 
       if (i < items.length - 1 && item.status !== "active") {
-        laterBtn.onclick = () => moveBack(item, items, i);
+        laterBtn.onclick = () => moveDown(item, items, i);
       } else {
         laterBtn.disabled = true;
       }
 
       li.appendChild(laterBtn);
-    }
-
-    if (isAdmin) {
-      const delBtn = document.createElement("button");
-      delBtn.textContent = "X";
-      delBtn.onclick = () =>
-        deleteDoc(doc(db, "queue", item.id));
-      li.appendChild(delBtn);
     }
 
     queueList.appendChild(li);
@@ -373,9 +378,7 @@ function render(items, me) {
     notified = true;
   }
 
-  if (!isTurn) {
-    notified = false;
-  }
+  if (!isTurn) notified = false;
 }
 
 //////////////////////////////
@@ -392,4 +395,3 @@ setInterval(() => {
 
 </body>
 </html>
-``
