@@ -10,15 +10,6 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 //////////////////////////////
-// ✅ DEBUG
-//////////////////////////////
-
-window.onerror = (msg) => console.error("❌", msg);
-window.onunhandledrejection = (e) => console.error("❌", e.reason);
-
-console.log("✅ App gestart");
-
-//////////////////////////////
 // ✅ STATE
 //////////////////////////////
 
@@ -37,10 +28,10 @@ let lastMe = null;
 
 let slots = 1;
 let isAdmin = false;
-let wasTurn = false;
+let wasAbleToStart = false;
 
 //////////////////////////////
-// 🔊 AUDIO FIX
+// 🔊 AUDIO
 //////////////////////////////
 
 const sound = new Audio(
@@ -49,7 +40,6 @@ const sound = new Audio(
 
 let soundEnabled = false;
 
-// ✅ unlock audio
 document.addEventListener("click", async () => {
   if (!soundEnabled) {
     try {
@@ -57,10 +47,7 @@ document.addEventListener("click", async () => {
       sound.pause();
       sound.currentTime = 0;
       soundEnabled = true;
-      console.log("🔊 Geluid geactiveerd");
-    } catch (e) {
-      console.log("Audio unlock mislukt", e);
-    }
+    } catch {}
   }
 });
 
@@ -74,22 +61,16 @@ if ("Notification" in window) {
 
 function notify() {
 
-  // popup
   if (Notification.permission === "granted") {
     new Notification("👉 JIJ BENT AAN DE BEURT!");
   }
 
-  // ✅ geluid FIX
   if (soundEnabled) {
     try {
       sound.pause();
       sound.currentTime = 0;
       sound.play();
-    } catch (e) {
-      console.log("Geluid error:", e);
-    }
-  } else {
-    console.warn("⚠️ Klik ergens om geluid te activeren");
+    } catch {}
   }
 }
 
@@ -120,8 +101,6 @@ function setupFirebase() {
   db = getFirestore(app);
   queueCol = collection(db, "queue");
   configDoc = doc(db, "config", "settings");
-
-  console.log("✅ Firebase OK");
 }
 
 //////////////////////////////
@@ -175,6 +154,7 @@ function setupListeners() {
   //////////////////////////
 
   ui.adminToggle.onchange = () => {
+
     if (ui.adminToggle.checked) {
       if (prompt("Wachtwoord") === "admin123") {
         isAdmin = true;
@@ -233,7 +213,7 @@ function setupListeners() {
 }
 
 //////////////////////////////
-// ✅ ADMIN MOVE (ROBUST)
+// ✅ ADMIN MOVE
 //////////////////////////////
 
 async function reorder(items) {
@@ -276,7 +256,6 @@ function render(items, me) {
     const li = document.createElement("li");
     li.textContent = `${i + 1}. ${item.name}`;
 
-    // 🟢 actief
     if (item.status === "active") {
       li.textContent += " (bezig)";
     }
@@ -335,29 +314,31 @@ function render(items, me) {
     ui.list.appendChild(li);
   });
 
-  // ✅ status
+  // ✅ status gebruiker
   if (!me) {
     ui.status.textContent = "Niet in wachtrij";
-    wasTurn = false;
+    wasAbleToStart = false;
     return;
   }
 
   const idx = items.findIndex(i => i.id === me.id);
 
-  // ✅ 🔥 FIX → notificatie ALTIJD bij beurt
-  const isTurn = idx < slots && me.status !== "active";
+  // ✅ 🔥 CORRECTE LOGICA
+  const canStart =
+    idx < slots &&
+    me.status !== "active" &&
+    activeCount < slots;
 
-  if (isTurn && !wasTurn) {
+  // ✅ notificatie ENKEL wanneer start mogelijk wordt
+  if (canStart && !wasAbleToStart) {
     notify();
     ui.notice.textContent = "👉 JE BENT AAN DE BEURT!";
   }
 
-  wasTurn = isTurn;
+  wasAbleToStart = canStart;
 
   ui.status.textContent = "Positie: " + (idx + 1);
 
-  // actieve info
   ui.active.textContent =
     activeCount ? `🔥 ${activeCount}/${slots} bezig` : "";
 }
-``
