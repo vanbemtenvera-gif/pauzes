@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -33,10 +34,10 @@ button { margin-left: 5px; }
 
 <ul id="queueList"></ul>
 <p id="yourStatus"></p>
+<p id="notice" class="notice"></p>
 
 <script type="module">
 
-// ✅ Firebase imports (gefixt)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
@@ -56,6 +57,49 @@ const queueCol = collection(db, "queue");
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
+let notified = false;
+
+//////////////////////////////
+// AUDIO + NOTIFICATIE
+//////////////////////////////
+
+const alertSound = new Audio(
+  "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
+);
+
+let soundEnabled = false;
+
+// nodig voor iPhone/browser
+document.addEventListener("click", () => {
+  if (!soundEnabled) {
+    alertSound.play().then(() => {
+      alertSound.pause();
+      alertSound.currentTime = 0;
+      soundEnabled = true;
+    }).catch(()=>{});
+  }
+});
+
+// browser notificatie
+if ("Notification" in window) {
+  Notification.requestPermission().catch(()=>{});
+}
+
+function notifyUser() {
+
+  // 🔔 popup
+  if (Notification.permission === "granted") {
+    new Notification("👉 JIJ BENT AAN DE BEURT!", {
+      body: "Je kan starten"
+    });
+  }
+
+  // 🔊 geluid
+  if (soundEnabled) {
+    alertSound.currentTime = 0;
+    alertSound.play().catch(()=>{});
+  }
+}
 
 //////////////////////////////
 // CLIENT ID
@@ -76,6 +120,7 @@ const joinBtn = document.getElementById("joinBtn");
 const leaveBtn = document.getElementById("leaveBtn");
 const queueList = document.getElementById("queueList");
 const yourStatus = document.getElementById("yourStatus");
+const notice = document.getElementById("notice");
 
 //////////////////////////////
 // HELPERS
@@ -89,11 +134,12 @@ function formatTime(ms) {
 }
 
 //////////////////////////////
-// MOVE DOWN (Later)
+// MOVE DOWN
 //////////////////////////////
 
 async function moveDown(item, items, index) {
   if (index === items.length - 1) return;
+
   const next = items[index + 1];
 
   await updateDoc(doc(db, "queue", item.id), {
@@ -106,9 +152,10 @@ async function moveDown(item, items, index) {
 //////////////////////////////
 
 joinBtn.onclick = async () => {
+
   const exists = lastItems.find(i => i.clientId === clientId);
   if (exists) {
-    alert("Je zit al in de wachtrij");
+    alert("Je zit al in wachtrij");
     return;
   }
 
@@ -122,7 +169,7 @@ joinBtn.onclick = async () => {
 };
 
 //////////////////////////////
-// LEAVE / STOP
+// LEAVE
 //////////////////////////////
 
 leaveBtn.onclick = async () => {
@@ -162,6 +209,7 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 function render(items, me) {
 
   queueList.innerHTML = "";
+  notice.textContent = "";
 
   items.forEach((item, i) => {
 
@@ -175,17 +223,29 @@ function render(items, me) {
 
     if (item.id === currentDocId) li.classList.add("me");
 
-    // ✅ ALLEEN VOOR HUIDIGE GEBRUIKER
+    // ✅ eigen knoppen
     if (item.id === currentDocId) {
 
-      // STOP
+      // ✅ ALS JE AAN DE BEURT BENT → START
+      if (i === 0 && item.status !== "active") {
+        const startBtn = document.createElement("button");
+        startBtn.textContent = "Start";
+        startBtn.onclick = () =>
+          updateDoc(doc(db, "queue", item.id), {
+            status: "active",
+            joinedAt: Date.now()
+          });
+        li.appendChild(startBtn);
+      }
+
+      // ✅ STOP
       const stopBtn = document.createElement("button");
       stopBtn.textContent = "Stop";
       stopBtn.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
       li.appendChild(stopBtn);
 
-      // ✅ ENIGE MOVE: LATER (naar beneden)
+      // ✅ LATER
       const laterBtn = document.createElement("button");
       laterBtn.textContent = "Later";
       laterBtn.onclick = () => moveDown(item, items, i);
@@ -202,12 +262,34 @@ function render(items, me) {
 
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
+    notified = false;
     return;
   }
 
   const idx = items.findIndex(x => x.id === me.id);
   yourStatus.textContent = `Positie: ${idx + 1}`;
+
+  // ✅ AAN DE BEURT?
+  if (idx === 0 && me.status !== "active" && !notified) {
+    notice.textContent = "👉 JE BENT AAN DE BEURT!";
+    notifyUser();
+    notified = true;
+  }
+
+  if (idx !== 0) {
+    notified = false;
+  }
 }
+
+//////////////////////////////
+// TIMER (updates tijd)
+//////////////////////////////
+
+setInterval(() => {
+  if (lastItems.length) {
+    render(lastItems, lastMe);
+  }
+}, 1000);
 
 </script>
 
