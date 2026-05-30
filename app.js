@@ -60,7 +60,6 @@ if ("Notification" in window) {
 }
 
 function notify() {
-
   if (Notification.permission === "granted") {
     new Notification("👉 JIJ BENT AAN DE BEURT!");
   }
@@ -251,7 +250,7 @@ function render(items, me) {
 
   const activeCount = items.filter(i => i.status === "active").length;
 
-  // ✅ 🔥 FIX: altijd updaten
+  // ✅ actieve sessies (ALTIJD updaten)
   ui.active.textContent =
     activeCount ? `🔥 ${activeCount}/${slots} bezig` : "";
 
@@ -318,24 +317,32 @@ function render(items, me) {
     ui.list.appendChild(li);
   });
 
-  // ✅ gebruiker status
+  // ✅ geen gebruiker
   if (!me) {
     ui.status.textContent = "Niet in wachtrij";
+    ui.notice.textContent = "";         // ✅ FIX
     wasAbleToStart = false;
     return;
   }
 
   const idx = items.findIndex(i => i.id === me.id);
 
-  // ✅ juiste logica
+  // ✅ correcte start logica
   const canStart =
     idx < slots &&
     me.status !== "active" &&
     activeCount < slots;
 
+  // ✅ notificatie alleen bij overgang
   if (canStart && !wasAbleToStart) {
     notify();
+  }
+
+  // ✅ melding correct beheren
+  if (canStart) {
     ui.notice.textContent = "👉 JE BENT AAN DE BEURT!";
+  } else {
+    ui.notice.textContent = "";
   }
 
   wasAbleToStart = canStart;
