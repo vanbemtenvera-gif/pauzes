@@ -18,6 +18,10 @@ li { margin: 6px 0; }
   font-weight: bold;
   font-size: 18px;
 }
+.active {
+  color: red;
+  font-weight: bold;
+}
 button { margin-left: 5px; }
 </style>
 </head>
@@ -42,6 +46,8 @@ button { margin-left: 5px; }
   <span id="slotCount">Slots: 1</span>
   <button id="increaseSlot">+</button>
 </div>
+
+<p id="activeInfo" class="active"></p>
 
 <ul id="queueList"></ul>
 <p id="yourStatus"></p>
@@ -75,7 +81,15 @@ let slots = 1;
 let isAdmin = false;
 
 //////////////////////////////
-// AUDIO + NOTIFICATIE
+// 🔄 AUTO REFRESH
+//////////////////////////////
+
+setInterval(() => {
+  location.reload(); // fallback refresh
+}, 30000); // elke 30 sec
+
+//////////////////////////////
+// 🔊 AUDIO + NOTIFICATIE
 //////////////////////////////
 
 const alertSound = new Audio(
@@ -83,7 +97,6 @@ const alertSound = new Audio(
 );
 
 let soundEnabled = false;
-
 document.addEventListener("click", () => {
   if (!soundEnabled) {
     alertSound.play().then(() => {
@@ -102,7 +115,6 @@ function notifyUser() {
   if (Notification.permission === "granted") {
     new Notification("👉 JIJ BENT AAN DE BEURT!");
   }
-
   if (soundEnabled) {
     alertSound.currentTime = 0;
     alertSound.play().catch(()=>{});
@@ -129,6 +141,7 @@ const leaveBtn = document.getElementById("leaveBtn");
 const queueList = document.getElementById("queueList");
 const yourStatus = document.getElementById("yourStatus");
 const notice = document.getElementById("notice");
+const activeInfo = document.getElementById("activeInfo");
 
 const adminToggle = document.getElementById("adminToggle");
 const adminControls = document.getElementById("adminControls");
@@ -140,24 +153,16 @@ const slotCount = document.getElementById("slotCount");
 // ADMIN
 //////////////////////////////
 
-const ADMIN_PASSWORD = "admin123";
-
 adminToggle.addEventListener("change", () => {
-  if (adminToggle.checked) {
-    const input = prompt("Admin wachtwoord:");
-    if (input === ADMIN_PASSWORD) {
-      isAdmin = true;
-      adminControls.style.display = "block";
-    } else {
-      adminToggle.checked = false;
-    }
+  const pass = prompt("Admin wachtwoord:");
+  if (pass === "admin123") {
+    isAdmin = true;
+    adminControls.style.display = "block";
   } else {
-    isAdmin = false;
-    adminControls.style.display = "none";
+    adminToggle.checked = false;
   }
 });
 
-// slots aanpassen
 increaseSlot.onclick = async () => {
   if (!isAdmin) return;
   await setDoc(configDoc, { slots: slots + 1 });
@@ -168,12 +173,11 @@ decreaseSlot.onclick = async () => {
   await setDoc(configDoc, { slots: slots - 1 });
 };
 
-// realtime slots ophalen
 onSnapshot(configDoc, snap => {
   if (snap.exists()) {
     slots = snap.data().slots || 1;
   }
-  slotCount.textContent = `Slots: ${slots}`;
+  slotCount.textContent = "Slots: " + slots;
 });
 
 //////////////////////////////
@@ -189,25 +193,19 @@ function formatTime(ms) {
 
 async function moveDown(item, items, index) {
   if (index === items.length - 1) return;
-
   const next = items[index + 1];
-
   await updateDoc(doc(db, "queue", item.id), {
     position: next.position + 0.1
   });
 }
 
 //////////////////////////////
-// JOIN
+// JOIN / LEAVE
 //////////////////////////////
 
 joinBtn.onclick = async () => {
-
   const exists = lastItems.find(i => i.clientId === clientId);
-  if (exists) {
-    alert("Je zit al in wachtrij");
-    return;
-  }
+  if (exists) return alert("Je zit al in wachtrij");
 
   await addDoc(queueCol, {
     clientId,
@@ -217,10 +215,6 @@ joinBtn.onclick = async () => {
     joinedAt: Date.now()
   });
 };
-
-//////////////////////////////
-// LEAVE
-//////////////////////////////
 
 leaveBtn.onclick = async () => {
   if (!currentDocId) return;
@@ -261,7 +255,11 @@ function render(items, me) {
   queueList.innerHTML = "";
   notice.textContent = "";
 
+  let activeCount = 0;
+
   items.forEach((item, i) => {
+
+    if (item.status === "active") activeCount++;
 
     const li = document.createElement("li");
 
@@ -271,12 +269,15 @@ function render(items, me) {
 
     li.textContent = `${i + 1}. ${item.name} (${formatTime(elapsed)})`;
 
+    if (item.status === "active") {
+      li.textContent += " (bezig)";
+      li.classList.add("active");
+    }
+
     if (item.id === currentDocId) li.classList.add("me");
 
-    // eigen knoppen
     if (item.id === currentDocId) {
 
-      // ✅ meerdere slots
       if (i < slots && item.status !== "active") {
         const startBtn = document.createElement("button");
         startBtn.textContent = "Start";
@@ -297,16 +298,18 @@ function render(items, me) {
       const laterBtn = document.createElement("button");
       laterBtn.textContent = "Later";
       laterBtn.onclick = () => moveDown(item, items, i);
-
-      if (i === items.length - 1) {
-        laterBtn.disabled = true;
-      }
-
       li.appendChild(laterBtn);
     }
 
     queueList.appendChild(li);
   });
+
+  // ✅ actief info
+  if (activeCount > 0) {
+    activeInfo.textContent = `🔥 ${activeCount} sessie(s) bezig`;
+  } else {
+    activeInfo.textContent = "";
+  }
 
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
@@ -325,9 +328,7 @@ function render(items, me) {
     notified = true;
   }
 
-  if (!isTurn) {
-    notified = false;
-  }
+  if (!isTurn) notified = false;
 }
 
 //////////////////////////////
