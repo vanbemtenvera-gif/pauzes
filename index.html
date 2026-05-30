@@ -32,6 +32,17 @@ button { margin-left: 5px; }
 
 <br><br>
 
+<label>
+  <input type="checkbox" id="adminToggle">
+  Admin modus
+</label>
+
+<div id="adminControls" style="display:none;margin-top:10px;">
+  <button id="decreaseSlot">-</button>
+  <span id="slotCount">Slots: 1</span>
+  <button id="increaseSlot">+</button>
+</div>
+
 <ul id="queueList"></ul>
 <p id="yourStatus"></p>
 <p id="notice" class="notice"></p>
@@ -41,7 +52,7 @@ button { margin-left: 5px; }
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
-  onSnapshot, query, orderBy, updateDoc
+  onSnapshot, query, orderBy, updateDoc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -52,12 +63,16 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+
 const queueCol = collection(db, "queue");
+const configDoc = doc(db, "config", "settings");
 
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
 let notified = false;
+let slots = 1;
+let isAdmin = false;
 
 //////////////////////////////
 // AUDIO + NOTIFICATIE
@@ -69,7 +84,6 @@ const alertSound = new Audio(
 
 let soundEnabled = false;
 
-// nodig voor iPhone/browser
 document.addEventListener("click", () => {
   if (!soundEnabled) {
     alertSound.play().then(() => {
@@ -80,21 +94,15 @@ document.addEventListener("click", () => {
   }
 });
 
-// browser notificatie
 if ("Notification" in window) {
   Notification.requestPermission().catch(()=>{});
 }
 
 function notifyUser() {
-
-  // 🔔 popup
   if (Notification.permission === "granted") {
-    new Notification("👉 JIJ BENT AAN DE BEURT!", {
-      body: "Je kan starten"
-    });
+    new Notification("👉 JIJ BENT AAN DE BEURT!");
   }
 
-  // 🔊 geluid
   if (soundEnabled) {
     alertSound.currentTime = 0;
     alertSound.play().catch(()=>{});
@@ -122,6 +130,52 @@ const queueList = document.getElementById("queueList");
 const yourStatus = document.getElementById("yourStatus");
 const notice = document.getElementById("notice");
 
+const adminToggle = document.getElementById("adminToggle");
+const adminControls = document.getElementById("adminControls");
+const increaseSlot = document.getElementById("increaseSlot");
+const decreaseSlot = document.getElementById("decreaseSlot");
+const slotCount = document.getElementById("slotCount");
+
+//////////////////////////////
+// ADMIN
+//////////////////////////////
+
+const ADMIN_PASSWORD = "admin123";
+
+adminToggle.addEventListener("change", () => {
+  if (adminToggle.checked) {
+    const input = prompt("Admin wachtwoord:");
+    if (input === ADMIN_PASSWORD) {
+      isAdmin = true;
+      adminControls.style.display = "block";
+    } else {
+      adminToggle.checked = false;
+    }
+  } else {
+    isAdmin = false;
+    adminControls.style.display = "none";
+  }
+});
+
+// slots aanpassen
+increaseSlot.onclick = async () => {
+  if (!isAdmin) return;
+  await setDoc(configDoc, { slots: slots + 1 });
+};
+
+decreaseSlot.onclick = async () => {
+  if (!isAdmin || slots <= 1) return;
+  await setDoc(configDoc, { slots: slots - 1 });
+};
+
+// realtime slots ophalen
+onSnapshot(configDoc, snap => {
+  if (snap.exists()) {
+    slots = snap.data().slots || 1;
+  }
+  slotCount.textContent = `Slots: ${slots}`;
+});
+
 //////////////////////////////
 // HELPERS
 //////////////////////////////
@@ -132,10 +186,6 @@ function formatTime(ms) {
   const s = total % 60;
   return `${m}:${s.toString().padStart(2,"0")}`;
 }
-
-//////////////////////////////
-// MOVE DOWN
-//////////////////////////////
 
 async function moveDown(item, items, index) {
   if (index === items.length - 1) return;
@@ -223,11 +273,11 @@ function render(items, me) {
 
     if (item.id === currentDocId) li.classList.add("me");
 
-    // ✅ eigen knoppen
+    // eigen knoppen
     if (item.id === currentDocId) {
 
-      // ✅ ALS JE AAN DE BEURT BENT → START
-      if (i === 0 && item.status !== "active") {
+      // ✅ meerdere slots
+      if (i < slots && item.status !== "active") {
         const startBtn = document.createElement("button");
         startBtn.textContent = "Start";
         startBtn.onclick = () =>
@@ -238,14 +288,12 @@ function render(items, me) {
         li.appendChild(startBtn);
       }
 
-      // ✅ STOP
       const stopBtn = document.createElement("button");
       stopBtn.textContent = "Stop";
       stopBtn.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
       li.appendChild(stopBtn);
 
-      // ✅ LATER
       const laterBtn = document.createElement("button");
       laterBtn.textContent = "Later";
       laterBtn.onclick = () => moveDown(item, items, i);
@@ -269,24 +317,25 @@ function render(items, me) {
   const idx = items.findIndex(x => x.id === me.id);
   yourStatus.textContent = `Positie: ${idx + 1}`;
 
-  // ✅ AAN DE BEURT?
-  if (idx === 0 && me.status !== "active" && !notified) {
+  const isTurn = idx < slots;
+
+  if (isTurn && me.status !== "active" && !notified) {
     notice.textContent = "👉 JE BENT AAN DE BEURT!";
     notifyUser();
     notified = true;
   }
 
-  if (idx !== 0) {
+  if (!isTurn) {
     notified = false;
   }
 }
 
 //////////////////////////////
-// TIMER (updates tijd)
+// TIMER
 //////////////////////////////
 
 setInterval(() => {
-  if (lastItems.length) {
+  if (lastItems.length > 0) {
     render(lastItems, lastMe);
   }
 }, 1000);
