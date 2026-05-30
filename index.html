@@ -13,8 +13,9 @@ html, body {
   margin: 0;
 }
 
+/* ✅ BACKGROUND + TYPO */
 body {
-  font-family: sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: white;
 
   background-size: cover;
@@ -22,38 +23,44 @@ body {
   background-repeat: no-repeat;
   background-attachment: fixed;
 
-  /* ✅ tekst leesbaarheid */
-  text-shadow: 0 2px 6px rgba(0,0,0,0.85);
+  /* ✅ subtiele leesbaarheid */
+  text-shadow: 0 2px 6px rgba(0,0,0,0.6);
 }
 
-/* ✅ DYNAMISCHE OVERLAY */
+/* ✅ PROFESSIONELE OVERLAY (licht) */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
 
   background: linear-gradient(
-    rgba(var(--overlay-r,0), var(--overlay-g,0), var(--overlay-b,0), 0.30),
-    rgba(var(--overlay-r,0), var(--overlay-g,0), var(--overlay-b,0), 0.60)
+    rgba(0,0,0,0.25),
+    rgba(0,0,0,0.45)
   );
 
-  backdrop-filter: blur(3px);
   z-index: -1;
 }
 
-/* ✅ CONTENT CONTAINER */
+/* ✅ CONTAINER */
 .container {
   max-width: 700px;
-  margin: 20px auto;
+  margin: 40px auto;
+  padding: 20px;
 }
 
-/* ✅ UI */
-li { margin: 6px 0; }
+/* ✅ TITEL */
+h1 {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+/* ✅ UI ELEMENTEN */
+li { margin: 8px 0; }
 
 .me {
   background: rgba(255,255,255,0.12);
+  padding: 5px;
   border-radius: 8px;
-  padding: 4px;
 }
 
 .active {
@@ -66,36 +73,40 @@ li { margin: 6px 0; }
   font-weight: bold;
 }
 
+/* ✅ INPUT */
+input {
+  padding: 8px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+}
+
 /* ✅ BUTTONS */
 button {
-  margin-left: 5px;
+  margin-left: 6px;
+  padding: 6px 10px;
+
   background: rgba(255,255,255,0.15);
   border: none;
+  border-radius: 8px;
+
   color: white;
-  padding: 6px 10px;
-  border-radius: 6px;
   cursor: pointer;
+
+  backdrop-filter: blur(4px);
 }
 
 button:hover {
   background: rgba(255,255,255,0.3);
 }
 
-/* ✅ INPUT */
-input {
-  padding: 6px;
-  border-radius: 6px;
-  border: none;
-}
-
-/* ✅ ALLES BOVEN OVERLAY */
+/* ✅ STRUCTUUR */
 ul, p, input, button, h1, label, div {
   position: relative;
   z-index: 1;
 }
 
 </style>
-
 </head>
 
 <body>
@@ -130,61 +141,20 @@ ul, p, input, button, h1, label, div {
 
 </div>
 
-<!-- ✅ FOTO + DYNAMISCHE KLEUR -->
+<!-- ✅ PROFESSIONELE FOTO (HIGH QUALITY) -->
 <script>
-(async function() {
-
-  const images = [
-    "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
-    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee",
-    "https://images.unsplash.com/photo-1469474968028-56623f02e42e",
-    "https://images.unsplash.com/photo-1501785888041-af3ef285b470",
-    "https://images.unsplash.com/photo-1493244040629-496f6d136cc3"
-  ];
+(function() {
 
   const day = new Date().getDate();
 
-  // ✅ hogere kwaliteit afbeelding
+  // ✅ dag seed → elke dag andere foto
+  const seed = "queue-app-" + day;
+
+  // ✅ 4K kwaliteit (scherp op elk scherm)
   const imageUrl =
-    images[day % images.length] +
-    "?auto=format&fit=crop&w=2400&q=90";
+    `https://source.unsplash.com/2560x1440/?nature,landscape&${seed}`;
 
   document.body.style.backgroundImage = `url(${imageUrl})`;
-
-  // ✅ kleur extractie
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.src = imageUrl;
-
-  img.onload = function() {
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    canvas.width = 100;
-    canvas.height = 100;
-
-    ctx.drawImage(img, 0, 0, 100, 100);
-
-    const data = ctx.getImageData(0, 0, 100, 100).data;
-
-    let r = 0, g = 0, b = 0, count = 0;
-
-    for (let i = 0; i < data.length; i += 4) {
-      r += data[i];
-      g += data[i + 1];
-      b += data[i + 2];
-      count++;
-    }
-
-    r = Math.floor(r / count);
-    g = Math.floor(g / count);
-    b = Math.floor(b / count);
-
-    document.documentElement.style.setProperty('--overlay-r', r);
-    document.documentElement.style.setProperty('--overlay-g', g);
-    document.documentElement.style.setProperty('--overlay-b', b);
-  };
 
 })();
 </script>
