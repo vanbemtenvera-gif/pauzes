@@ -30,12 +30,14 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 //////////////////////////////
-// ✅ STATE
+// ✅ STATE (MOET BOVEN INIT)
 //////////////////////////////
 
 let db = null;
 let queueCol = null;
 let configDoc = null;
+
+let ui = {};   // ✅ HIER BELANGRIJK
 
 let clientId = localStorage.getItem("clientId") ||
   ("client_" + Math.random().toString(36).slice(2));
@@ -50,19 +52,19 @@ let isAdmin = false;
 let wasTurn = false;
 
 //////////////////////////////
-// ✅ INIT (BELANGRIJK VOLGORDE)
+// ✅ INIT (NU PAS AANROEPEN)
 //////////////////////////////
 
 init();
 
 function init() {
-  setupFirebase();   // ✅ eerst Firebase!
+  setupFirebase();
   setupUI();
   setupListeners();
 }
 
 //////////////////////////////
-// ✅ FIREBASE (FIX)
+// ✅ FIREBASE
 //////////////////////////////
 
 function setupFirebase() {
@@ -74,8 +76,6 @@ function setupFirebase() {
   });
 
   db = getFirestore(app);
-
-  // ✅ PAS NU DB GEBRUIKEN
   queueCol = collection(db, "queue");
   configDoc = doc(db, "config", "settings");
 
@@ -86,9 +86,8 @@ function setupFirebase() {
 // ✅ UI
 //////////////////////////////
 
-let ui = {};
-
 function setupUI() {
+
   ui.name = document.getElementById("nameInput");
   ui.join = document.getElementById("joinBtn");
   ui.leave = document.getElementById("leaveBtn");
@@ -102,6 +101,8 @@ function setupUI() {
   ui.inc = document.getElementById("increaseSlot");
   ui.dec = document.getElementById("decreaseSlot");
   ui.slot = document.getElementById("slotCount");
+
+  console.log("✅ UI geladen");
 }
 
 //////////////////////////////
@@ -140,10 +141,6 @@ if ("Notification" in window) {
 
 function setupListeners() {
 
-  //////////////////////////
-  // JOIN
-  //////////////////////////
-
   ui.join.onclick = async () => {
     if (lastItems.find(i => i.clientId === clientId)) return;
 
@@ -155,18 +152,10 @@ function setupListeners() {
     });
   };
 
-  //////////////////////////
-  // LEAVE
-  //////////////////////////
-
   ui.leave.onclick = () => {
     if (currentDocId)
       deleteDoc(doc(db, "queue", currentDocId));
   };
-
-  //////////////////////////
-  // ADMIN
-  //////////////////////////
 
   ui.adminToggle.onchange = () => {
 
@@ -190,10 +179,6 @@ function setupListeners() {
   ui.dec.onclick = () => {
     if (slots > 1) setDoc(configDoc, { slots: slots - 1 });
   };
-
-  //////////////////////////
-  // FIRESTORE
-  //////////////////////////
 
   onSnapshot(configDoc, snap => {
     if (snap.exists()) {
@@ -226,109 +211,20 @@ function setupListeners() {
 }
 
 //////////////////////////////
-// ✅ ADMIN MOVE (STABIEL)
-//////////////////////////////
-
-async function reorder(items) {
-  for (let i = 0; i < items.length; i++) {
-    await safeUpdate(items[i].id, { position: i });
-  }
-}
-
-function moveUp(items, i) {
-  if (i === 0) return;
-  const newItems = [...items];
-  [newItems[i], newItems[i - 1]] = [newItems[i - 1], newItems[i]];
-  reorder(newItems);
-}
-
-function moveDown(items, i) {
-  if (i === items.length - 1) return;
-  const newItems = [...items];
-  [newItems[i], newItems[i + 1]] = [newItems[i + 1], newItems[i]];
-  reorder(newItems);
-}
-
-//////////////////////////////
 // ✅ RENDER
 //////////////////////////////
 
 function render(items, me) {
 
-  if (!items || !Array.isArray(items)) return;
-
   ui.list.innerHTML = "";
   ui.notice.textContent = "";
-
-  const activeCount = items.filter(i => i.status === "active").length;
 
   items.forEach((item, i) => {
 
     const li = document.createElement("li");
     li.textContent = `${i + 1}. ${item.name}`;
 
-    // USER
-    if (item.id === currentDocId) {
-
-      if (i < slots && activeCount < slots) {
-        const start = document.createElement("button");
-        start.textContent = "Start";
-        start.onclick = () =>
-          safeUpdate(item.id, { status: "active" });
-        li.appendChild(start);
-      }
-
-      const stop = document.createElement("button");
-      stop.textContent = "Stop";
-      stop.onclick = () =>
-        deleteDoc(doc(db, "queue", item.id));
-      li.appendChild(stop);
-
-      const later = document.createElement("button");
-      later.textContent = "Later";
-      later.onclick = () => moveDown(items, i);
-      li.appendChild(later);
-    }
-
-    // ADMIN
-    if (isAdmin) {
-
-      const up = document.createElement("button");
-      up.textContent = "↑";
-      up.onclick = () => moveUp(items, i);
-
-      const down = document.createElement("button");
-      down.textContent = "↓";
-      down.onclick = () => moveDown(items, i);
-
-      const del = document.createElement("button");
-      del.textContent = "X";
-      del.onclick = () =>
-        deleteDoc(doc(db, "queue", item.id));
-
-      li.appendChild(up);
-      li.appendChild(down);
-      li.appendChild(del);
-    }
-
     ui.list.appendChild(li);
   });
-
-  if (!me) {
-    ui.status.textContent = "Niet in wachtrij";
-    wasTurn = false;
-    return;
-  }
-
-  const idx = items.findIndex(i => i.id === me.id);
-  const isTurn = idx < slots;
-
-  if (isTurn && !wasTurn) {
-    notify();
-    ui.notice.textContent = "👉 JE BENT AAN DE BEURT!";
-  }
-
-  wasTurn = isTurn;
-
-  ui.status.textContent = "Positie: " + (idx + 1);
 }
+``
