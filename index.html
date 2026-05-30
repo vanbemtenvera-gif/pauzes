@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -6,35 +5,11 @@
 <title>Virtuele wachtrij</title>
 
 <style>
-html, body {
-  height: 100%;
-  margin: 0;
-  font-family: sans-serif;
-}
-
-/* ✅ achtergrond */
-#bg {
-  position: fixed;
-  inset: 0;
-  z-index: -2;
-  background-size: cover;
-  background-position: center;
-}
-
-/* ✅ overlay */
-#overlay {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: rgba(255,255,255,0.75);
-}
-
-/* origineel */
 body {
+  font-family: sans-serif;
   max-width: 700px;
   margin: 20px auto;
 }
-
 li { margin: 6px 0; }
 .me { background: #e3f2fd; }
 .notice {
@@ -47,9 +22,6 @@ button { margin-left: 5px; }
 </head>
 
 <body>
-
-<div id="bg"></div>
-<div id="overlay"></div>
 
 <h1>Virtuele wachtrij</h1>
 
@@ -74,41 +46,12 @@ button { margin-left: 5px; }
 <p id="yourStatus"></p>
 <p id="notice" class="notice"></p>
 
-<!-- ✅ achtergrond -->
-<script>
-const backgrounds = [
-  "https://picsum.photos/id/1015/1920/1080",
-  "https://picsum.photos/id/1016/1920/1080",
-  "https://picsum.photos/id/1018/1920/1080",
-  "https://picsum.photos/id/1020/1920/1080",
-  "https://picsum.photos/id/1024/1920/1080",
-  "https://picsum.photos/id/1035/1920/1080"
-];
-
-(function () {
-  const today = new Date().toISOString().split("T")[0];
-  let saved = JSON.parse(localStorage.getItem("bgData") || "null");
-
-  if (!saved || saved.date !== today) {
-    saved = {
-      date: today,
-      index: Math.floor(Math.random() * backgrounds.length)
-    };
-    localStorage.setItem("bgData", JSON.stringify(saved));
-  }
-
-  document.getElementById("bg").style.backgroundImage =
-    `url('${backgrounds[saved.index]}')`;
-})();
-</script>
-
-<!-- ✅ VOLLEDIG SCRIPT -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp } from https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js;
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
   onSnapshot, query, orderBy, updateDoc, setDoc
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+} from https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js;
 
 const firebaseConfig = {
   apiKey: "PASTE_HIER_JE_API_KEY",
@@ -128,9 +71,12 @@ let isAdmin = false;
 let notified = false;
 let slots = 2;
 
-/* AUDIO */
+//////////////////////////////
+// 🔊 AUDIO
+//////////////////////////////
+
 const alertSound = new Audio(
-  "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
+  https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3
 );
 
 alertSound.volume = 1.0;
@@ -146,7 +92,10 @@ document.addEventListener("click", () => {
   }
 });
 
-/* NOTIFICATIE */
+//////////////////////////////
+// 🔔 NOTIFICATIE
+//////////////////////////////
+
 if ("Notification" in window) {
   Notification.requestPermission().catch(()=>{});
 }
@@ -157,22 +106,134 @@ function showNotification() {
       body: "Je bent aan de beurt!"
     });
   }
+
+  if (soundEnabled) {
+    alertSound.currentTime = 0;
+    alertSound.play().catch(()=>{});
+  }
+
+  const original = document.title;
+  const interval = setInterval(() => {
+    document.title =
+      document.title === "👉 JOUW BEURT!"
+        ? original
+        : "👉 JOUW BEURT!";
+  }, 1000);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    document.title = original;
+  }, 15000);
 }
 
-/* CLIENT ID */
+//////////////////////////////
+// CLIENT ID
+//////////////////////////////
+
 let clientId = localStorage.getItem("clientId");
 if (!clientId) {
   clientId = "client_" + Math.random().toString(36).slice(2);
   localStorage.setItem("clientId", clientId);
 }
 
-/* UI */
+//////////////////////////////
+// UI
+//////////////////////////////
+
 const nameInput = document.getElementById("nameInput");
 const joinBtn = document.getElementById("joinBtn");
 const leaveBtn = document.getElementById("leaveBtn");
+const queueList = document.getElementById("queueList");
+const yourStatus = document.getElementById("yourStatus");
+const notice = document.getElementById("notice");
+const adminToggle = document.getElementById("adminToggle");
 
-/* ✅ BELANGRIJK: JOIN WERKT NU */
+const adminControls = document.getElementById("adminControls");
+const slotCount = document.getElementById("slotCount");
+const increaseSlot = document.getElementById("increaseSlot");
+const decreaseSlot = document.getElementById("decreaseSlot");
+
+//////////////////////////////
+// HELPERS
+//////////////////////////////
+
+function formatTime(ms) {
+  const total = Math.floor(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2,"0")}`;
+}
+
+//////////////////////////////
+// ADMIN
+//////////////////////////////
+
+const ADMIN_PASSWORD = "admin123";
+
+adminToggle.addEventListener("change", () => {
+  if (adminToggle.checked) {
+    const input = prompt("Admin wachtwoord:");
+    if (input === ADMIN_PASSWORD) {
+      isAdmin = true;
+      adminControls.style.display = "block";
+    } else {
+      adminToggle.checked = false;
+    }
+  } else {
+    isAdmin = false;
+    adminControls.style.display = "none";
+  }
+});
+
+increaseSlot.onclick = async () => {
+  if (!isAdmin) return;
+  await setDoc(configDoc, { slots: slots + 1 });
+};
+
+decreaseSlot.onclick = async () => {
+  if (!isAdmin || slots <= 1) return;
+  await setDoc(configDoc, { slots: slots - 1 });
+};
+
+onSnapshot(configDoc, snap => {
+  if (snap.exists()) {
+    slots = snap.data().slots || 2;
+  }
+  slotCount.textContent = `Slots: ${slots}`;
+});
+
+//////////////////////////////
+// 🔼🔽 ADMIN MOVE
+//////////////////////////////
+
+async function moveUp(item, items, index) {
+  if (index === 0) return;
+  const prev = items[index - 1];
+
+  await updateDoc(doc(db, "queue", item.id), {
+    position: prev.position - 0.1
+  });
+}
+
+async function moveDown(item, items, index) {
+  if (index === items.length - 1) return;
+  const next = items[index + 1];
+
+  await updateDoc(doc(db, "queue", item.id), {
+    position: next.position + 0.1
+  });
+}
+
+//////////////////////////////
+// JOIN
+//////////////////////////////
+
 joinBtn.addEventListener("click", async () => {
+  const exists = lastItems.find(i => i.clientId === clientId);
+  if (exists) {
+    alert("Je zit al in de wachtrij");
+    return;
+  }
 
   await addDoc(queueCol, {
     clientId,
@@ -181,8 +242,154 @@ joinBtn.addEventListener("click", async () => {
     status: "waiting",
     joinedAt: Date.now()
   });
-
 });
+
+//////////////////////////////
+// LEAVE
+//////////////////////////////
+
+leaveBtn.addEventListener("click", async () => {
+  if (!currentDocId) return;
+  await deleteDoc(doc(db, "queue", currentDocId));
+});
+
+//////////////////////////////
+// REALTIME
+//////////////////////////////
+
+onSnapshot(query(queueCol, orderBy("position")), snap => {
+
+  const items = [];
+  let me = null;
+
+  snap.forEach(d => {
+    const item = { id: d.id, ...d.data() };
+    items.push(item);
+
+    if (item.clientId === clientId) {
+      currentDocId = d.id;
+      me = item;
+    }
+  });
+
+  lastItems = items;
+  lastMe = me;
+
+  render(items, me);
+});
+
+//////////////////////////////
+// RENDER
+//////////////////////////////
+
+function render(items, me) {
+
+  queueList.innerHTML = "";
+  notice.textContent = "";
+
+  items.forEach((item, i) => {
+
+    const li = document.createElement("li");
+
+    const elapsed = item.joinedAt
+      ? Date.now() - item.joinedAt
+      : 0;
+
+    li.textContent = `${i + 1}. ${item.name} (${formatTime(elapsed)})`;
+
+    if (item.id === currentDocId) li.classList.add("me");
+
+    if (item.status === "active") {
+      li.textContent += " (bezig)";
+    }
+
+    // ✅ ADMIN KNOPPEN
+    if (isAdmin) {
+      const upBtn = document.createElement("button");
+      upBtn.textContent = "↑";
+      upBtn.onclick = () => moveUp(item, items, i);
+      if (i === 0) upBtn.disabled = true;
+
+      const downBtn = document.createElement("button");
+      downBtn.textContent = "↓";
+      downBtn.onclick = () => moveDown(item, items, i);
+      if (i === items.length - 1) downBtn.disabled = true;
+
+      li.appendChild(upBtn);
+      li.appendChild(downBtn);
+
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "X";
+      delBtn.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
+      li.appendChild(delBtn);
+    }
+
+    // ✅ EIGEN USER KNOPPEN
+    if (item.id === currentDocId) {
+
+      if (i < slots) {
+        const startBtn = document.createElement("button");
+        startBtn.textContent = "Start";
+        startBtn.onclick = () =>
+          updateDoc(doc(db, "queue", item.id), {
+            status: "active",
+            joinedAt: Date.now()
+          });
+        li.appendChild(startBtn);
+      }
+
+      const stopBtn = document.createElement("button");
+      stopBtn.textContent = "Stop";
+      stopBtn.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
+      li.appendChild(stopBtn);
+
+      const laterBtn = document.createElement("button");
+      laterBtn.textContent = "Later";
+
+      if (i < items.length - 1 && item.status !== "active") {
+        laterBtn.onclick = () => moveDown(item, items, i);
+      } else {
+        laterBtn.disabled = true;
+      }
+
+      li.appendChild(laterBtn);
+    }
+
+    queueList.appendChild(li);
+  });
+
+  if (!me) {
+    yourStatus.textContent = "Niet in wachtrij";
+    notified = false;
+    return;
+  }
+
+  const idx = items.findIndex(x => x.id === me.id);
+  yourStatus.textContent = `Positie: ${idx + 1}`;
+
+  const isTurn = idx < slots;
+
+  if (isTurn && me.status !== "active" && !notified) {
+    notice.textContent = "👉 JE BENT AAN DE BEURT!";
+    showNotification();
+    notified = true;
+  }
+
+  if (!isTurn) notified = false;
+}
+
+//////////////////////////////
+// TIMER
+//////////////////////////////
+
+setInterval(() => {
+  if (lastItems.length > 0) {
+    render(lastItems, lastMe);
+  }
+}, 1000);
+
 </script>
 
 </body>
