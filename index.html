@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -32,28 +31,16 @@ button { margin-left: 5px; }
 
 <br><br>
 
-<label>
-  <input type="checkbox" id="adminToggle">
-  Admin modus
-</label>
-
-<div id="adminControls" style="display:none;margin-top:10px;">
-  <button id="decreaseSlot">-</button>
-  <span id="slotCount">Slots: 2</span>
-  <button id="increaseSlot">+</button>
-</div>
-
 <ul id="queueList"></ul>
 <p id="yourStatus"></p>
-<p id="notice" class="notice"></p>
 
 <script type="module">
 
-/* ✅ FIX: correcte imports */
+// ✅ Firebase imports (gefixt)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
-  onSnapshot, query, orderBy, updateDoc, setDoc
+  onSnapshot, query, orderBy, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -65,57 +52,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const queueCol = collection(db, "queue");
-const configDoc = doc(db, "config", "settings");
 
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
-let isAdmin = false;
-let notified = false;
-let slots = 2;
-
-//////////////////////////////
-// 🔊 AUDIO
-//////////////////////////////
-
-/* ✅ FIX: quotes */
-const alertSound = new Audio(
-  "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
-);
-
-alertSound.volume = 1.0;
-let soundEnabled = false;
-
-document.addEventListener("click", () => {
-  if (!soundEnabled) {
-    alertSound.play().then(() => {
-      alertSound.pause();
-      alertSound.currentTime = 0;
-      soundEnabled = true;
-    }).catch(()=>{});
-  }
-});
-
-//////////////////////////////
-// 🔔 NOTIFICATIE
-//////////////////////////////
-
-if ("Notification" in window) {
-  Notification.requestPermission().catch(()=>{});
-}
-
-function showNotification() {
-  if (Notification.permission === "granted") {
-    new Notification("👉 JOUW BEURT!", {
-      body: "Je bent aan de beurt!"
-    });
-  }
-
-  if (soundEnabled) {
-    alertSound.currentTime = 0;
-    alertSound.play().catch(()=>{});
-  }
-}
 
 //////////////////////////////
 // CLIENT ID
@@ -136,13 +76,6 @@ const joinBtn = document.getElementById("joinBtn");
 const leaveBtn = document.getElementById("leaveBtn");
 const queueList = document.getElementById("queueList");
 const yourStatus = document.getElementById("yourStatus");
-const notice = document.getElementById("notice");
-const adminToggle = document.getElementById("adminToggle");
-
-const adminControls = document.getElementById("adminControls");
-const slotCount = document.getElementById("slotCount");
-const increaseSlot = document.getElementById("increaseSlot");
-const decreaseSlot = document.getElementById("decreaseSlot");
 
 //////////////////////////////
 // HELPERS
@@ -156,55 +89,8 @@ function formatTime(ms) {
 }
 
 //////////////////////////////
-// ADMIN
+// MOVE DOWN (Later)
 //////////////////////////////
-
-const ADMIN_PASSWORD = "admin123";
-
-adminToggle.addEventListener("change", () => {
-  if (adminToggle.checked) {
-    const input = prompt("Admin wachtwoord:");
-    if (input === ADMIN_PASSWORD) {
-      isAdmin = true;
-      adminControls.style.display = "block";
-    } else {
-      adminToggle.checked = false;
-    }
-  } else {
-    isAdmin = false;
-    adminControls.style.display = "none";
-  }
-});
-
-increaseSlot.onclick = async () => {
-  if (!isAdmin) return;
-  await setDoc(configDoc, { slots: slots + 1 });
-};
-
-decreaseSlot.onclick = async () => {
-  if (!isAdmin || slots <= 1) return;
-  await setDoc(configDoc, { slots: slots - 1 });
-};
-
-onSnapshot(configDoc, snap => {
-  if (snap.exists()) {
-    slots = snap.data().slots || 2;
-  }
-  slotCount.textContent = `Slots: ${slots}`;
-});
-
-//////////////////////////////
-// 🔼🔽 ADMIN MOVE
-//////////////////////////////
-
-async function moveUp(item, items, index) {
-  if (index === 0) return;
-  const prev = items[index - 1];
-
-  await updateDoc(doc(db, "queue", item.id), {
-    position: prev.position - 0.1
-  });
-}
 
 async function moveDown(item, items, index) {
   if (index === items.length - 1) return;
@@ -216,11 +102,10 @@ async function moveDown(item, items, index) {
 }
 
 //////////////////////////////
-// ✅ JOIN (WERKT NU)
+// JOIN
 //////////////////////////////
 
-joinBtn.addEventListener("click", async () => {
-
+joinBtn.onclick = async () => {
   const exists = lastItems.find(i => i.clientId === clientId);
   if (exists) {
     alert("Je zit al in de wachtrij");
@@ -234,16 +119,16 @@ joinBtn.addEventListener("click", async () => {
     status: "waiting",
     joinedAt: Date.now()
   });
-});
+};
 
 //////////////////////////////
-// LEAVE
+// LEAVE / STOP
 //////////////////////////////
 
-leaveBtn.addEventListener("click", async () => {
+leaveBtn.onclick = async () => {
   if (!currentDocId) return;
   await deleteDoc(doc(db, "queue", currentDocId));
-});
+};
 
 //////////////////////////////
 // REALTIME
@@ -277,7 +162,6 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 function render(items, me) {
 
   queueList.innerHTML = "";
-  notice.textContent = "";
 
   items.forEach((item, i) => {
 
@@ -291,8 +175,38 @@ function render(items, me) {
 
     if (item.id === currentDocId) li.classList.add("me");
 
+    // ✅ ALLEEN VOOR HUIDIGE GEBRUIKER
+    if (item.id === currentDocId) {
+
+      // STOP
+      const stopBtn = document.createElement("button");
+      stopBtn.textContent = "Stop";
+      stopBtn.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
+      li.appendChild(stopBtn);
+
+      // ✅ ENIGE MOVE: LATER (naar beneden)
+      const laterBtn = document.createElement("button");
+      laterBtn.textContent = "Later";
+      laterBtn.onclick = () => moveDown(item, items, i);
+
+      if (i === items.length - 1) {
+        laterBtn.disabled = true;
+      }
+
+      li.appendChild(laterBtn);
+    }
+
     queueList.appendChild(li);
   });
+
+  if (!me) {
+    yourStatus.textContent = "Niet in wachtrij";
+    return;
+  }
+
+  const idx = items.findIndex(x => x.id === me.id);
+  yourStatus.textContent = `Positie: ${idx + 1}`;
 }
 
 </script>
