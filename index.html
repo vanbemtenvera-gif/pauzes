@@ -85,6 +85,7 @@ const sound = new Audio(
 );
 
 let soundEnabled = false;
+
 document.addEventListener("click", () => {
   if (!soundEnabled) {
     sound.play().then(() => {
@@ -122,6 +123,12 @@ if (!clientId) {
 // ADMIN
 //////////////////////////////
 
+const adminToggle = document.getElementById("adminToggle");
+const adminControls = document.getElementById("adminControls");
+const increaseSlot = document.getElementById("increaseSlot");
+const decreaseSlot = document.getElementById("decreaseSlot");
+const slotCount = document.getElementById("slotCount");
+
 adminToggle.onchange = () => {
   if (prompt("Wachtwoord") === "admin123") {
     isAdmin = true;
@@ -132,6 +139,7 @@ adminToggle.onchange = () => {
 };
 
 increaseSlot.onclick = () => setDoc(configDoc, { slots: slots + 1 });
+
 decreaseSlot.onclick = () => {
   if (slots > 1) setDoc(configDoc, { slots: slots - 1 });
 };
@@ -148,21 +156,17 @@ onSnapshot(configDoc, snap => {
 });
 
 //////////////////////////////
-// ✅ 🔼🔽 MOVE FIX (SWAP)
+// 🔼🔽 STABIELE VERPLAATSING
 //////////////////////////////
 
 async function moveUp(item, items, i) {
   if (i === 0) return;
 
   const prev = items[i - 1];
+  const newPos = (item.position + prev.position) / 2;
 
-  // 🔄 swap positions
   await updateDoc(doc(db, "queue", item.id), {
-    position: prev.position
-  });
-
-  await updateDoc(doc(db, "queue", prev.id), {
-    position: item.position
+    position: newPos
   });
 }
 
@@ -170,14 +174,10 @@ async function moveDown(item, items, i) {
   if (i === items.length - 1) return;
 
   const next = items[i + 1];
+  const newPos = (item.position + next.position) / 2;
 
-  // 🔄 swap positions
   await updateDoc(doc(db, "queue", item.id), {
-    position: next.position
-  });
-
-  await updateDoc(doc(db, "queue", next.id), {
-    position: item.position
+    position: newPos
   });
 }
 
@@ -185,8 +185,11 @@ async function moveDown(item, items, i) {
 // JOIN / LEAVE
 //////////////////////////////
 
-joinBtn.onclick = async () => {
+const nameInput = document.getElementById("nameInput");
+const joinBtn = document.getElementById("joinBtn");
+const leaveBtn = document.getElementById("leaveBtn");
 
+joinBtn.onclick = async () => {
   if (lastItems.find(i => i.clientId === clientId)) {
     return alert("Je zit al in wachtrij");
   }
@@ -233,6 +236,11 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 // RENDER
 //////////////////////////////
 
+const queueList = document.getElementById("queueList");
+const yourStatus = document.getElementById("yourStatus");
+const notice = document.getElementById("notice");
+const activeInfo = document.getElementById("activeInfo");
+
 function render(items, me) {
 
   queueList.innerHTML = "";
@@ -253,6 +261,7 @@ function render(items, me) {
 
     if (item.id === currentDocId) li.classList.add("me");
 
+    // USER
     if (item.id === currentDocId) {
 
       const canStart =
@@ -282,7 +291,7 @@ function render(items, me) {
       li.appendChild(laterBtn);
     }
 
-    // ✅ ADMIN
+    // ADMIN
     if (isAdmin) {
 
       const upBtn = document.createElement("button");
