@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -47,15 +48,13 @@ button { margin-left: 5px; }
 <p id="notice" class="notice"></p>
 
 <script type="module">
-import { initializeApp } from https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js;
+
+/* ✅ FIX: correcte imports */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
   onSnapshot, query, orderBy, updateDoc, setDoc
-} from https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js;
-
-//////////////////////////////
-// FIREBASE
-//////////////////////////////
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "PASTE_HIER_JE_API_KEY",
@@ -68,10 +67,6 @@ const db = getFirestore(app);
 const queueCol = collection(db, "queue");
 const configDoc = doc(db, "config", "settings");
 
-//////////////////////////////
-// STATE
-//////////////////////////////
-
 let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
@@ -80,28 +75,24 @@ let notified = false;
 let slots = 2;
 
 //////////////////////////////
-// 🔊 iPHONE RINGTONE
+// 🔊 AUDIO
 //////////////////////////////
 
+/* ✅ FIX: quotes */
 const alertSound = new Audio(
-  https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3
+  "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
 );
 
 alertSound.volume = 1.0;
-
 let soundEnabled = false;
 
-// ✅ Audio unlock (CRUCIAAL)
 document.addEventListener("click", () => {
   if (!soundEnabled) {
-    alertSound.play()
-      .then(() => {
-        alertSound.pause();
-        alertSound.currentTime = 0;
-        soundEnabled = true;
-        console.log("✅ Audio geactiveerd");
-      })
-      .catch(() => {});
+    alertSound.play().then(() => {
+      alertSound.pause();
+      alertSound.currentTime = 0;
+      soundEnabled = true;
+    }).catch(()=>{});
   }
 });
 
@@ -110,38 +101,20 @@ document.addEventListener("click", () => {
 //////////////////////////////
 
 if ("Notification" in window) {
-  Notification.requestPermission().catch(() => {});
+  Notification.requestPermission().catch(()=>{});
 }
 
 function showNotification() {
-
-  // 🔔 popup
   if (Notification.permission === "granted") {
     new Notification("👉 JOUW BEURT!", {
       body: "Je bent aan de beurt!"
     });
   }
 
-  // 🔊 iPhone geluid
   if (soundEnabled) {
     alertSound.currentTime = 0;
-    alertSound.play().catch(() => {});
+    alertSound.play().catch(()=>{});
   }
-
-  // 🔄 titel knipper
-  const original = document.title;
-
-  const interval = setInterval(() => {
-    document.title =
-      document.title === "👉 JOUW BEURT!"
-        ? original
-        : "👉 JOUW BEURT!";
-  }, 1000);
-
-  setTimeout(() => {
-    clearInterval(interval);
-    document.title = original;
-  }, 15000);
 }
 
 //////////////////////////////
@@ -221,7 +194,29 @@ onSnapshot(configDoc, snap => {
 });
 
 //////////////////////////////
-// JOIN
+// 🔼🔽 ADMIN MOVE
+//////////////////////////////
+
+async function moveUp(item, items, index) {
+  if (index === 0) return;
+  const prev = items[index - 1];
+
+  await updateDoc(doc(db, "queue", item.id), {
+    position: prev.position - 0.1
+  });
+}
+
+async function moveDown(item, items, index) {
+  if (index === items.length - 1) return;
+  const next = items[index + 1];
+
+  await updateDoc(doc(db, "queue", item.id), {
+    position: next.position + 0.1
+  });
+}
+
+//////////////////////////////
+// ✅ JOIN (WERKT NU)
 //////////////////////////////
 
 joinBtn.addEventListener("click", async () => {
@@ -276,19 +271,6 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 });
 
 //////////////////////////////
-// MOVE BACK
-//////////////////////////////
-
-async function moveBack(item, items, index) {
-  const next = items[index + 1];
-  if (!next) return;
-
-  await updateDoc(doc(db, "queue", item.id), {
-    position: next.position + 0.5
-  });
-}
-
-//////////////////////////////
 // RENDER
 //////////////////////////////
 
@@ -309,86 +291,11 @@ function render(items, me) {
 
     if (item.id === currentDocId) li.classList.add("me");
 
-    if (item.status === "active") {
-      li.textContent += " (bezig)";
-    }
-
-    if (item.id === currentDocId) {
-
-      if (i < slots) {
-        const startBtn = document.createElement("button");
-        startBtn.textContent = "Start";
-        startBtn.onclick = () =>
-          updateDoc(doc(db, "queue", item.id), {
-            status: "active",
-            joinedAt: Date.now()
-          });
-        li.appendChild(startBtn);
-      }
-
-      const stopBtn = document.createElement("button");
-      stopBtn.textContent = "Stop";
-      stopBtn.onclick = () =>
-        deleteDoc(doc(db, "queue", item.id));
-      li.appendChild(stopBtn);
-
-      const laterBtn = document.createElement("button");
-      laterBtn.textContent = "Later";
-
-      if (i < items.length - 1 && item.status !== "active") {
-        laterBtn.onclick = () => moveBack(item, items, i);
-      } else {
-        laterBtn.disabled = true;
-      }
-
-      li.appendChild(laterBtn);
-    }
-
-    if (isAdmin) {
-      const delBtn = document.createElement("button");
-      delBtn.textContent = "X";
-      delBtn.onclick = () =>
-        deleteDoc(doc(db, "queue", item.id));
-      li.appendChild(delBtn);
-    }
-
     queueList.appendChild(li);
   });
-
-  if (!me) {
-    yourStatus.textContent = "Niet in wachtrij";
-    notified = false;
-    return;
-  }
-
-  const idx = items.findIndex(x => x.id === me.id);
-  yourStatus.textContent = `Positie: ${idx + 1}`;
-
-  const isTurn = idx < slots;
-
-  if (isTurn && me.status !== "active" && !notified) {
-    notice.textContent = "👉 JE BENT AAN DE BEURT!";
-    showNotification();
-    notified = true;
-  }
-
-  if (!isTurn) {
-    notified = false;
-  }
 }
-
-//////////////////////////////
-// TIMER
-//////////////////////////////
-
-setInterval(() => {
-  if (lastItems.length > 0) {
-    render(lastItems, lastMe);
-  }
-}, 1000);
 
 </script>
 
 </body>
 </html>
-``
