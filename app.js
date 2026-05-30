@@ -1,25 +1,5 @@
 
 //////////////////////////////
-// ✅ DEBUG SYSTEM
-//////////////////////////////
-
-function logError(msg) {
-  console.error(msg);
-
-  const box = document.getElementById("errorBox");
-  if (!box) return;
-
-  const el = document.createElement("div");
-  el.textContent = "❌ " + msg;
-  box.appendChild(el);
-}
-
-window.onerror = (msg) => logError(msg);
-window.onunhandledrejection = (e) => logError(e.reason);
-
-console.log("✅ App gestart");
-
-//////////////////////////////
 // ✅ IMPORTS
 //////////////////////////////
 
@@ -30,29 +10,28 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 //////////////////////////////
-// ✅ STATE (MOET BOVEN INIT)
+// ✅ STATE
 //////////////////////////////
 
-let db = null;
-let queueCol = null;
-let configDoc = null;
+let db, queueCol, configDoc;
+let ui = {};
 
-let ui = {};   // ✅ HIER BELANGRIJK
+let clientId = localStorage.getItem("clientId");
+if (!clientId) {
+  clientId = "client_" + Math.random().toString(36).slice(2);
+  localStorage.setItem("clientId", clientId);
+}
 
-let clientId = localStorage.getItem("clientId") ||
-  ("client_" + Math.random().toString(36).slice(2));
-
-localStorage.setItem("clientId", clientId);
-
+let currentDocId = null;
 let lastItems = [];
 let lastMe = null;
-let currentDocId = null;
+
 let slots = 1;
 let isAdmin = false;
 let wasTurn = false;
 
 //////////////////////////////
-// ✅ INIT (NU PAS AANROEPEN)
+// ✅ START
 //////////////////////////////
 
 init();
@@ -78,8 +57,6 @@ function setupFirebase() {
   db = getFirestore(app);
   queueCol = collection(db, "queue");
   configDoc = doc(db, "config", "settings");
-
-  console.log("✅ Firebase correct geïnitialiseerd");
 }
 
 //////////////////////////////
@@ -87,7 +64,6 @@ function setupFirebase() {
 //////////////////////////////
 
 function setupUI() {
-
   ui.name = document.getElementById("nameInput");
   ui.join = document.getElementById("joinBtn");
   ui.leave = document.getElementById("leaveBtn");
@@ -101,24 +77,6 @@ function setupUI() {
   ui.inc = document.getElementById("increaseSlot");
   ui.dec = document.getElementById("decreaseSlot");
   ui.slot = document.getElementById("slotCount");
-
-  console.log("✅ UI geladen");
-}
-
-//////////////////////////////
-// ✅ HELPERS
-//////////////////////////////
-
-function safeRender() {
-  if (lastItems.length) render(lastItems, lastMe);
-}
-
-async function safeUpdate(id, data) {
-  try {
-    await updateDoc(doc(db, "queue", id), data);
-  } catch (e) {
-    logError(e);
-  }
 }
 
 //////////////////////////////
@@ -126,7 +84,7 @@ async function safeUpdate(id, data) {
 //////////////////////////////
 
 function notify() {
-  if (Notification.permission === "granted") {
+  if ("Notification" in window && Notification.permission === "granted") {
     new Notification("👉 JIJ BENT AAN DE BEURT!");
   }
 }
@@ -141,6 +99,7 @@ if ("Notification" in window) {
 
 function setupListeners() {
 
+  // JOIN
   ui.join.onclick = async () => {
     if (lastItems.find(i => i.clientId === clientId)) return;
 
@@ -152,10 +111,15 @@ function setupListeners() {
     });
   };
 
+  // LEAVE
   ui.leave.onclick = () => {
     if (currentDocId)
       deleteDoc(doc(db, "queue", currentDocId));
   };
+
+  //////////////////////////
+  // ADMIN
+  //////////////////////////
 
   ui.adminToggle.onchange = () => {
 
@@ -171,7 +135,7 @@ function setupListeners() {
     }
 
     ui.adminControls.style.display = isAdmin ? "block" : "none";
-    safeRender();
+    render(lastItems, lastMe);
   };
 
   ui.inc.onclick = () => setDoc(configDoc, { slots: slots + 1 });
@@ -180,11 +144,15 @@ function setupListeners() {
     if (slots > 1) setDoc(configDoc, { slots: slots - 1 });
   };
 
+  //////////////////////////
+  // FIRESTORE
+  //////////////////////////
+
   onSnapshot(configDoc, snap => {
     if (snap.exists()) {
       slots = snap.data().slots;
       ui.slot.textContent = "Slots: " + slots;
-      safeRender();
+      render(lastItems, lastMe);
     }
   });
 
@@ -211,20 +179,123 @@ function setupListeners() {
 }
 
 //////////////////////////////
+// ✅ ADMIN MOVE (STABIEL)
+//////////////////////////////
+
+async function reorder(items) {
+  for (let i = 0; i < items.length; i++) {
+    await updateDoc(doc(db, "queue", items[i].id), {
+      position: i
+    });
+  }
+}
+
+function moveUp(items, i) {
+  if (i === 0) return;
+  const newItems = [...items];
+  [newItems[i - 1], newItems[i]] = [newItems[i], newItems[i - 1]];
+  reorder(newItems);
+}
+
+function moveDown(items, i) {
+  if (i === items.length - 1) return;
+  const newItems = [...items];
+  [newItems[i + 1], newItems[i]] = [newItems[i], newItems[i + 1]];
+  reorder(newItems);
+}
+
+//////////////////////////////
 // ✅ RENDER
 //////////////////////////////
 
 function render(items, me) {
 
+  if (!items) return;
+
   ui.list.innerHTML = "";
   ui.notice.textContent = "";
+
+  const activeCount = items.filter(i => i.status === "active").length;
 
   items.forEach((item, i) => {
 
     const li = document.createElement("li");
     li.textContent = `${i + 1}. ${item.name}`;
 
+    // 👤 USER
+    if (item.id === currentDocId) {
+
+      const canStart =
+        i < slots &&
+        item.status !== "active" &&
+        activeCount < slots;
+
+      if (canStart) {
+        const start = document.createElement("button");
+        start.textContent = "Start";
+        start.onclick = () =>
+          updateDoc(doc(db, "queue", item.id), {
+            status: "active"
+          });
+        li.appendChild(start);
+      }
+
+      const stop = document.createElement("button");
+      stop.textContent = "Stop";
+      stop.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
+      li.appendChild(stop);
+
+      const later = document.createElement("button");
+      later.textContent = "Later";
+      later.onclick = () => moveDown(items, i);
+      li.appendChild(later);
+    }
+
+    // 👨‍💼 ADMIN
+    if (isAdmin) {
+
+      const up = document.createElement("button");
+      up.textContent = "↑";
+      up.onclick = () => moveUp(items, i);
+
+      const down = document.createElement("button");
+      down.textContent = "↓";
+      down.onclick = () => moveDown(items, i);
+
+      const del = document.createElement("button");
+      del.textContent = "X";
+      del.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
+
+      li.appendChild(up);
+      li.appendChild(down);
+      li.appendChild(del);
+    }
+
     ui.list.appendChild(li);
   });
+
+  if (!me) {
+    ui.status.textContent = "Niet in wachtrij";
+    wasTurn = false;
+    return;
+  }
+
+  const idx = items.findIndex(i => i.id === me.id);
+
+  const isTurn =
+    idx < slots &&
+    me.status !== "active" &&
+    activeCount < slots;
+
+  if (isTurn && !wasTurn) {
+    notify();
+    ui.notice.textContent = "👉 JE BENT AAN DE BEURT!";
+  }
+
+  wasTurn = isTurn;
+
+  ui.status.textContent = "Positie: " + (idx + 1);
 }
 ``
