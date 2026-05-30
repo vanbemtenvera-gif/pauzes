@@ -7,17 +7,22 @@
 
 <style>
 
+/* ✅ FULLSCREEN */
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
 body {
   font-family: sans-serif;
-  max-width: 700px;
-  margin: 20px auto;
   color: white;
 
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  background-attachment: fixed;
 
-  /* ✅ tekst altijd leesbaar */
+  /* ✅ tekst leesbaarheid */
   text-shadow: 0 2px 6px rgba(0,0,0,0.85);
 }
 
@@ -28,18 +33,25 @@ body::before {
   inset: 0;
 
   background: linear-gradient(
-    rgba(var(--overlay-r,0), var(--overlay-g,0), var(--overlay-b,0), 0.35),
-    rgba(var(--overlay-r,0), var(--overlay-g,0), var(--overlay-b,0), 0.65)
+    rgba(var(--overlay-r,0), var(--overlay-g,0), var(--overlay-b,0), 0.30),
+    rgba(var(--overlay-r,0), var(--overlay-g,0), var(--overlay-b,0), 0.60)
   );
 
   backdrop-filter: blur(3px);
   z-index: -1;
 }
 
+/* ✅ CONTENT CONTAINER */
+.container {
+  max-width: 700px;
+  margin: 20px auto;
+}
+
+/* ✅ UI */
 li { margin: 6px 0; }
 
 .me {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.12);
   border-radius: 8px;
   padding: 4px;
 }
@@ -54,13 +66,13 @@ li { margin: 6px 0; }
   font-weight: bold;
 }
 
-/* ✅ UI elementen */
+/* ✅ BUTTONS */
 button {
   margin-left: 5px;
   background: rgba(255,255,255,0.15);
   border: none;
   color: white;
-  padding: 5px 10px;
+  padding: 6px 10px;
   border-radius: 6px;
   cursor: pointer;
 }
@@ -69,14 +81,14 @@ button:hover {
   background: rgba(255,255,255,0.3);
 }
 
-/* ✅ inputs */
+/* ✅ INPUT */
 input {
-  padding: 5px;
+  padding: 6px;
   border-radius: 6px;
   border: none;
 }
 
-/* ✅ alles boven overlay */
+/* ✅ ALLES BOVEN OVERLAY */
 ul, p, input, button, h1, label, div {
   position: relative;
   z-index: 1;
@@ -87,6 +99,8 @@ ul, p, input, button, h1, label, div {
 </head>
 
 <body>
+
+<div class="container">
 
 <h1>Virtuele wachtrij</h1>
 
@@ -114,7 +128,9 @@ ul, p, input, button, h1, label, div {
 <p id="yourStatus"></p>
 <p id="notice" class="notice"></p>
 
-<!-- ✅ DYNAMISCHE FOTO + KLEUR -->
+</div>
+
+<!-- ✅ FOTO + DYNAMISCHE KLEUR -->
 <script>
 (async function() {
 
@@ -127,12 +143,15 @@ ul, p, input, button, h1, label, div {
   ];
 
   const day = new Date().getDate();
-  const imageUrl = images[day % images.length] + "?auto=format&fit=crop&w=1600&q=80";
 
-  // ✅ zet achtergrond
+  // ✅ hogere kwaliteit afbeelding
+  const imageUrl =
+    images[day % images.length] +
+    "?auto=format&fit=crop&w=2400&q=90";
+
   document.body.style.backgroundImage = `url(${imageUrl})`;
 
-  // ✅ laad afbeelding in canvas (voor kleur extractie)
+  // ✅ kleur extractie
   const img = new Image();
   img.crossOrigin = "anonymous";
   img.src = imageUrl;
@@ -162,7 +181,6 @@ ul, p, input, button, h1, label, div {
     g = Math.floor(g / count);
     b = Math.floor(b / count);
 
-    // ✅ zet CSS variabelen
     document.documentElement.style.setProperty('--overlay-r', r);
     document.documentElement.style.setProperty('--overlay-g', g);
     document.documentElement.style.setProperty('--overlay-b', b);
