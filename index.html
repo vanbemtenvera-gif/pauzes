@@ -25,17 +25,15 @@ body {
   text-shadow: 0 2px 6px rgba(0,0,0,0.6);
 }
 
-/* ✅ OVERLAY (licht) */
+/* ✅ OVERLAY */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
-
   background: linear-gradient(
     rgba(0,0,0,0.25),
     rgba(0,0,0,0.45)
   );
-
   z-index: -1;
 }
 
@@ -65,26 +63,33 @@ li { margin: 8px 0; }
   font-weight: bold;
 }
 
+/* ✅ INPUT */
 input {
   padding: 8px;
   border-radius: 8px;
   border: none;
 }
 
+/* ✅ BUTTONS met ACCENT */
 button {
   margin-left: 6px;
   padding: 6px 10px;
-  background: rgba(255,255,255,0.15);
+
+  background: rgba(var(--accent-r,255), var(--accent-g,255), var(--accent-b,255), 0.25);
+
   border: none;
   border-radius: 8px;
   color: white;
   cursor: pointer;
+
+  backdrop-filter: blur(4px);
 }
 
 button:hover {
-  background: rgba(255,255,255,0.3);
+  background: rgba(var(--accent-r,255), var(--accent-g,255), var(--accent-b,255), 0.4);
 }
 
+/* ✅ Z-INDEX FIX */
 ul, p, input, button, h1, label, div {
   position: relative;
   z-index: 1;
@@ -125,16 +130,58 @@ ul, p, input, button, h1, label, div {
 
 </div>
 
-<!-- ✅ FOTO (WERKT ALTIJD 🚀) -->
+<!-- ✅ CURATED FOTO + ACCENT KLEUR -->
 <script>
 (function() {
 
-  const day = new Date().getDate();
+  // ✅ vaste mooie foto's
+  const images = [
+    "https://picsum.photos/id/1018/2560/1440",
+    "https://picsum.photos/id/1015/2560/1440",
+    "https://picsum.photos/id/1016/2560/1440",
+    "https://picsum.photos/id/1020/2560/1440",
+    "https://picsum.photos/id/1003/2560/1440"
+  ];
 
-  // ✅ vaste seed → elke dag andere foto
-  const imageUrl = `https://picsum.photos/seed/queue${day}/2560/1440`;
+  const day = new Date().getDate();
+  const imageUrl = images[day % images.length];
 
   document.body.style.backgroundImage = `url("${imageUrl}")`;
+
+  // ✅ kleur extractie
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.src = imageUrl;
+
+  img.onload = function() {
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = 100;
+    canvas.height = 100;
+
+    ctx.drawImage(img, 0, 0, 100, 100);
+
+    const data = ctx.getImageData(0, 0, 100, 100).data;
+
+    let r = 0, g = 0, b = 0, count = 0;
+
+    for (let i = 0; i < data.length; i += 4) {
+      r += data[i];
+      g += data[i + 1];
+      b += data[i + 2];
+      count++;
+    }
+
+    r = Math.floor(r / count);
+    g = Math.floor(g / count);
+    b = Math.floor(b / count);
+
+    document.documentElement.style.setProperty('--accent-r', r);
+    document.documentElement.style.setProperty('--accent-g', g);
+    document.documentElement.style.setProperty('--accent-b', b);
+  };
 
 })();
 </script>
@@ -144,4 +191,3 @@ ul, p, input, button, h1, label, div {
 
 </body>
 </html>
-``
