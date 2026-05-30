@@ -77,7 +77,7 @@ let isAdmin = false;
 let wasTurn = false;
 
 //////////////////////////////
-// NOTIFICATIE
+// 🔔 NOTIFICATIE
 //////////////////////////////
 
 const sound = new Audio(
@@ -85,6 +85,7 @@ const sound = new Audio(
 );
 
 let soundEnabled = false;
+
 document.addEventListener("click", () => {
   if (!soundEnabled) {
     sound.play().then(() => {
@@ -150,15 +151,20 @@ adminToggle.onchange = () => {
 };
 
 increaseSlot.onclick = () => setDoc(configDoc, { slots: slots + 1 });
-
 decreaseSlot.onclick = () => {
   if (slots > 1) setDoc(configDoc, { slots: slots - 1 });
 };
 
+// ✅ 🔥 FIX HIER
 onSnapshot(configDoc, snap => {
   if (snap.exists()) {
     slots = snap.data().slots;
     slotCount.textContent = "Slots: " + slots;
+
+    // 🚨 CRUCIAAL → opnieuw renderen
+    if (lastItems.length) {
+      render(lastItems, lastMe);
+    }
   }
 });
 
@@ -203,7 +209,7 @@ leaveBtn.onclick = () => {
 };
 
 //////////////////////////////
-// REALTIME
+// REALTIME QUEUE
 //////////////////////////////
 
 onSnapshot(query(queueCol, orderBy("position")), snap => {
@@ -228,7 +234,7 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 });
 
 //////////////////////////////
-// RENDER
+// ✅ RENDER
 //////////////////////////////
 
 function render(items, me) {
@@ -251,7 +257,7 @@ function render(items, me) {
 
     if (item.id === currentDocId) li.classList.add("me");
 
-    // ✅ USER
+    // USER
     if (item.id === currentDocId) {
 
       const canStart =
@@ -281,18 +287,16 @@ function render(items, me) {
       li.appendChild(laterBtn);
     }
 
-    // ✅ ✅ ADMIN (FIX HIER)
+    // ADMIN
     if (isAdmin) {
 
       const upBtn = document.createElement("button");
       upBtn.textContent = "↑";
       upBtn.onclick = () => moveUp(item, items, i);
-      if (i === 0) upBtn.disabled = true;
 
       const downBtn = document.createElement("button");
       downBtn.textContent = "↓";
       downBtn.onclick = () => moveDown(item, items, i);
-      if (i === items.length - 1) downBtn.disabled = true;
 
       const delBtn = document.createElement("button");
       delBtn.textContent = "X";
