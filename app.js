@@ -1,4 +1,20 @@
 
+const sound = new Audio(
+  "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
+);
+
+let soundEnabled = false;
+
+document.addEventListener("click", () => {
+  if (!soundEnabled) {
+    sound.play().then(() => {
+      sound.pause();
+      sound.currentTime = 0;
+      soundEnabled = true;
+    }).catch(()=>{});
+  }
+});
+
 //////////////////////////////
 // ✅ IMPORTS
 //////////////////////////////
@@ -87,7 +103,13 @@ function notify() {
   if ("Notification" in window && Notification.permission === "granted") {
     new Notification("👉 JIJ BENT AAN DE BEURT!");
   }
+
+if (soundEnabled) {
+    sound.currentTime = 0;
+    sound.play().catch(()=>{});
+  }
 }
+
 
 if ("Notification" in window) {
   Notification.requestPermission().catch(()=>{});
@@ -284,10 +306,7 @@ function render(items, me) {
 
   const idx = items.findIndex(i => i.id === me.id);
 
-  const isTurn =
-    idx < slots &&
-    me.status !== "active" &&
-    activeCount < slots;
+  const isTurn = idx < slots && me.status !== "active"
 
   if (isTurn && !wasTurn) {
     notify();
