@@ -80,7 +80,7 @@ let isAdmin = false;
 let notified = false;
 
 //////////////////////////////
-// AUDIO + NOTIFICATIE
+// AUDIO
 //////////////////////////////
 
 const alertSound = new Audio(
@@ -92,7 +92,6 @@ document.addEventListener("click", () => {
   if (!soundEnabled) {
     alertSound.play().then(() => {
       alertSound.pause();
-      alertSound.currentTime = 0;
       soundEnabled = true;
     }).catch(()=>{});
   }
@@ -224,6 +223,7 @@ leaveBtn.onclick = async () => {
 //////////////////////////////
 
 onSnapshot(query(queueCol, orderBy("position")), snap => {
+
   const items = [];
   let me = null;
 
@@ -250,15 +250,17 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 function render(items, me) {
 
   queueList.innerHTML = "";
-  let activeCount = 0;
+  notice.textContent = "";
+
+  let activeCount = items.filter(x => x.status === "active").length;
 
   items.forEach((item, i) => {
 
-    if (item.status === "active") activeCount++;
-
     const li = document.createElement("li");
 
-    const elapsed = item.joinedAt ? Date.now() - item.joinedAt : 0;
+    const elapsed = item.joinedAt
+      ? Date.now() - item.joinedAt
+      : 0;
 
     li.textContent = `${i + 1}. ${item.name} (${formatTime(elapsed)})`;
 
@@ -269,17 +271,19 @@ function render(items, me) {
 
     if (item.id === currentDocId) li.classList.add("me");
 
-    // ✅ USER knoppen
+    // ✅ USER
     if (item.id === currentDocId) {
 
-      if (i < slots && item.status !== "active") {
+      // ✅ 🔥 FIX HIER
+      if (i < slots && activeCount < slots && item.status !== "active") {
         const startBtn = document.createElement("button");
         startBtn.textContent = "Start";
-        startBtn.onclick = () =>
-          updateDoc(doc(db, "queue", item.id), {
+        startBtn.onclick = async () => {
+          await updateDoc(doc(db, "queue", item.id), {
             status: "active",
             joinedAt: Date.now()
           });
+        };
         li.appendChild(startBtn);
       }
 
@@ -295,7 +299,7 @@ function render(items, me) {
       li.appendChild(laterBtn);
     }
 
-    // ✅ ADMIN knoppen
+    // ✅ ADMIN
     if (isAdmin) {
 
       const up = document.createElement("button");
@@ -322,7 +326,7 @@ function render(items, me) {
   });
 
   activeInfo.textContent =
-    activeCount ? `🔥 ${activeCount} sessie(s) bezig` : "";
+    activeCount ? `🔥 ${activeCount}/${slots} bezig` : "";
 
   if (!me) {
     yourStatus.textContent = "Niet in wachtrij";
@@ -333,13 +337,15 @@ function render(items, me) {
   const idx = items.findIndex(x => x.id === me.id);
   yourStatus.textContent = `Positie: ${idx + 1}`;
 
-  if (idx < slots && me.status !== "active" && !notified) {
+  const isTurn = idx < slots && activeCount < slots;
+
+  if (isTurn && !notified) {
     notice.textContent = "👉 JE BENT AAN DE BEURT!";
     notifyUser();
     notified = true;
   }
 
-  if (idx >= slots) notified = false;
+  if (!isTurn) notified = false;
 }
 
 </script>
