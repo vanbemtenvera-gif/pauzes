@@ -7,6 +7,8 @@ function logError(msg) {
   console.error(msg);
 
   const box = document.getElementById("errorBox");
+  if (!box) return;
+
   const el = document.createElement("div");
   el.textContent = "❌ " + msg;
   box.appendChild(el);
@@ -28,41 +30,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 //////////////////////////////
-// ✅ INIT
-//////////////////////////////
-
-init();
-
-function init() {
-  setupFirebase();
-  setupUI();
-  setupListeners();
-}
-
-//////////////////////////////
-// ✅ FIREBASE
-//////////////////////////////
-
-let db, queueCol, configDoc;
-
-function setupFirebase() {
-
-  const app = initializeApp({
-    apiKey: "PASTE_HIER_JE_API_KEY",
-    authDomain: "adem-in---adem-uit.firebaseapp.com",
-    projectId: "adem-in---adem-uit"
-  });
-
-  db = getFirestore(app);
-  queueCol = collection(db, "queue");
-  configDoc = doc(db, "config", "settings");
-
-  console.log("✅ Firebase OK");
-}
-
-//////////////////////////////
 // ✅ STATE
 //////////////////////////////
+
+let db = null;
+let queueCol = null;
+let configDoc = null;
 
 let clientId = localStorage.getItem("clientId") ||
   ("client_" + Math.random().toString(36).slice(2));
@@ -75,6 +48,39 @@ let currentDocId = null;
 let slots = 1;
 let isAdmin = false;
 let wasTurn = false;
+
+//////////////////////////////
+// ✅ INIT (BELANGRIJK VOLGORDE)
+//////////////////////////////
+
+init();
+
+function init() {
+  setupFirebase();   // ✅ eerst Firebase!
+  setupUI();
+  setupListeners();
+}
+
+//////////////////////////////
+// ✅ FIREBASE (FIX)
+//////////////////////////////
+
+function setupFirebase() {
+
+  const app = initializeApp({
+    apiKey: "PASTE_HIER_JE_API_KEY",
+    authDomain: "adem-in---adem-uit.firebaseapp.com",
+    projectId: "adem-in---adem-uit"
+  });
+
+  db = getFirestore(app);
+
+  // ✅ PAS NU DB GEBRUIKEN
+  queueCol = collection(db, "queue");
+  configDoc = doc(db, "config", "settings");
+
+  console.log("✅ Firebase correct geïnitialiseerd");
+}
 
 //////////////////////////////
 // ✅ UI
@@ -114,8 +120,18 @@ async function safeUpdate(id, data) {
   }
 }
 
+//////////////////////////////
+// 🔔 NOTIFICATIE
+//////////////////////////////
+
 function notify() {
-  new Notification("👉 JIJ BENT AAN DE BEURT!");
+  if (Notification.permission === "granted") {
+    new Notification("👉 JIJ BENT AAN DE BEURT!");
+  }
+}
+
+if ("Notification" in window) {
+  Notification.requestPermission().catch(()=>{});
 }
 
 //////////////////////////////
@@ -123,6 +139,10 @@ function notify() {
 //////////////////////////////
 
 function setupListeners() {
+
+  //////////////////////////
+  // JOIN
+  //////////////////////////
 
   ui.join.onclick = async () => {
     if (lastItems.find(i => i.clientId === clientId)) return;
@@ -134,6 +154,10 @@ function setupListeners() {
       status: "waiting"
     });
   };
+
+  //////////////////////////
+  // LEAVE
+  //////////////////////////
 
   ui.leave.onclick = () => {
     if (currentDocId)
@@ -162,12 +186,13 @@ function setupListeners() {
   };
 
   ui.inc.onclick = () => setDoc(configDoc, { slots: slots + 1 });
+
   ui.dec.onclick = () => {
     if (slots > 1) setDoc(configDoc, { slots: slots - 1 });
   };
 
   //////////////////////////
-  // FIRESTORE LISTENERS
+  // FIRESTORE
   //////////////////////////
 
   onSnapshot(configDoc, snap => {
@@ -201,7 +226,7 @@ function setupListeners() {
 }
 
 //////////////////////////////
-// ✅ ADMIN MOVE (ROBUST)
+// ✅ ADMIN MOVE (STABIEL)
 //////////////////////////////
 
 async function reorder(items) {
@@ -230,6 +255,8 @@ function moveDown(items, i) {
 
 function render(items, me) {
 
+  if (!items || !Array.isArray(items)) return;
+
   ui.list.innerHTML = "";
   ui.notice.textContent = "";
 
@@ -240,9 +267,9 @@ function render(items, me) {
     const li = document.createElement("li");
     li.textContent = `${i + 1}. ${item.name}`;
 
+    // USER
     if (item.id === currentDocId) {
 
-      // START
       if (i < slots && activeCount < slots) {
         const start = document.createElement("button");
         start.textContent = "Start";
@@ -251,21 +278,19 @@ function render(items, me) {
         li.appendChild(start);
       }
 
-      // STOP
       const stop = document.createElement("button");
       stop.textContent = "Stop";
       stop.onclick = () =>
         deleteDoc(doc(db, "queue", item.id));
       li.appendChild(stop);
 
-      // LATER
       const later = document.createElement("button");
       later.textContent = "Later";
       later.onclick = () => moveDown(items, i);
       li.appendChild(later);
     }
 
-    // ADMIN KNOPPEN
+    // ADMIN
     if (isAdmin) {
 
       const up = document.createElement("button");
