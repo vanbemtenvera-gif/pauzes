@@ -1,20 +1,4 @@
 
-const sound = new Audio(
-  "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
-);
-
-let soundEnabled = false;
-
-document.addEventListener("click", () => {
-  if (!soundEnabled) {
-    sound.play().then(() => {
-      sound.pause();
-      sound.currentTime = 0;
-      soundEnabled = true;
-    }).catch(()=>{});
-  }
-});
-
 //////////////////////////////
 // ✅ IMPORTS
 //////////////////////////////
@@ -24,6 +8,15 @@ import {
   getFirestore, collection, addDoc, doc, deleteDoc,
   onSnapshot, query, orderBy, updateDoc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+//////////////////////////////
+// ✅ DEBUG
+//////////////////////////////
+
+window.onerror = (msg) => console.error("❌", msg);
+window.onunhandledrejection = (e) => console.error("❌", e.reason);
+
+console.log("✅ App gestart");
 
 //////////////////////////////
 // ✅ STATE
@@ -47,7 +40,61 @@ let isAdmin = false;
 let wasTurn = false;
 
 //////////////////////////////
-// ✅ START
+// 🔊 AUDIO FIX
+//////////////////////////////
+
+const sound = new Audio(
+  "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
+);
+
+let soundEnabled = false;
+
+// ✅ unlock audio
+document.addEventListener("click", async () => {
+  if (!soundEnabled) {
+    try {
+      await sound.play();
+      sound.pause();
+      sound.currentTime = 0;
+      soundEnabled = true;
+      console.log("🔊 Geluid geactiveerd");
+    } catch (e) {
+      console.log("Audio unlock mislukt", e);
+    }
+  }
+});
+
+//////////////////////////////
+// 🔔 NOTIFICATIE
+//////////////////////////////
+
+if ("Notification" in window) {
+  Notification.requestPermission().catch(()=>{});
+}
+
+function notify() {
+
+  // popup
+  if (Notification.permission === "granted") {
+    new Notification("👉 JIJ BENT AAN DE BEURT!");
+  }
+
+  // ✅ geluid FIX
+  if (soundEnabled) {
+    try {
+      sound.pause();
+      sound.currentTime = 0;
+      sound.play();
+    } catch (e) {
+      console.log("Geluid error:", e);
+    }
+  } else {
+    console.warn("⚠️ Klik ergens om geluid te activeren");
+  }
+}
+
+//////////////////////////////
+// ✅ INIT
 //////////////////////////////
 
 init();
@@ -73,6 +120,8 @@ function setupFirebase() {
   db = getFirestore(app);
   queueCol = collection(db, "queue");
   configDoc = doc(db, "config", "settings");
+
+  console.log("✅ Firebase OK");
 }
 
 //////////////////////////////
@@ -83,6 +132,7 @@ function setupUI() {
   ui.name = document.getElementById("nameInput");
   ui.join = document.getElementById("joinBtn");
   ui.leave = document.getElementById("leaveBtn");
+
   ui.list = document.getElementById("queueList");
   ui.status = document.getElementById("yourStatus");
   ui.notice = document.getElementById("notice");
@@ -93,26 +143,6 @@ function setupUI() {
   ui.inc = document.getElementById("increaseSlot");
   ui.dec = document.getElementById("decreaseSlot");
   ui.slot = document.getElementById("slotCount");
-}
-
-//////////////////////////////
-// 🔔 NOTIFICATIE
-//////////////////////////////
-
-function notify() {
-  if ("Notification" in window && Notification.permission === "granted") {
-    new Notification("👉 JIJ BENT AAN DE BEURT!");
-  }
-
-if (soundEnabled) {
-    sound.currentTime = 0;
-    sound.play().catch(()=>{});
-  }
-}
-
-
-if ("Notification" in window) {
-  Notification.requestPermission().catch(()=>{});
 }
 
 //////////////////////////////
@@ -135,8 +165,9 @@ function setupListeners() {
 
   // LEAVE
   ui.leave.onclick = () => {
-    if (currentDocId)
+    if (currentDocId) {
       deleteDoc(doc(db, "queue", currentDocId));
+    }
   };
 
   //////////////////////////
@@ -144,7 +175,6 @@ function setupListeners() {
   //////////////////////////
 
   ui.adminToggle.onchange = () => {
-
     if (ui.adminToggle.checked) {
       if (prompt("Wachtwoord") === "admin123") {
         isAdmin = true;
@@ -163,7 +193,9 @@ function setupListeners() {
   ui.inc.onclick = () => setDoc(configDoc, { slots: slots + 1 });
 
   ui.dec.onclick = () => {
-    if (slots > 1) setDoc(configDoc, { slots: slots - 1 });
+    if (slots > 1) {
+      setDoc(configDoc, { slots: slots - 1 });
+    }
   };
 
   //////////////////////////
@@ -201,7 +233,7 @@ function setupListeners() {
 }
 
 //////////////////////////////
-// ✅ ADMIN MOVE (STABIEL)
+// ✅ ADMIN MOVE (ROBUST)
 //////////////////////////////
 
 async function reorder(items) {
@@ -244,7 +276,12 @@ function render(items, me) {
     const li = document.createElement("li");
     li.textContent = `${i + 1}. ${item.name}`;
 
-    // 👤 USER
+    // 🟢 actief
+    if (item.status === "active") {
+      li.textContent += " (bezig)";
+    }
+
+    // USER
     if (item.id === currentDocId) {
 
       const canStart =
@@ -274,7 +311,7 @@ function render(items, me) {
       li.appendChild(later);
     }
 
-    // 👨‍💼 ADMIN
+    // ADMIN
     if (isAdmin) {
 
       const up = document.createElement("button");
@@ -298,6 +335,7 @@ function render(items, me) {
     ui.list.appendChild(li);
   });
 
+  // ✅ status
   if (!me) {
     ui.status.textContent = "Niet in wachtrij";
     wasTurn = false;
@@ -306,7 +344,8 @@ function render(items, me) {
 
   const idx = items.findIndex(i => i.id === me.id);
 
-  const isTurn = idx < slots && me.status !== "active"
+  // ✅ 🔥 FIX → notificatie ALTIJD bij beurt
+  const isTurn = idx < slots && me.status !== "active";
 
   if (isTurn && !wasTurn) {
     notify();
@@ -316,5 +355,9 @@ function render(items, me) {
   wasTurn = isTurn;
 
   ui.status.textContent = "Positie: " + (idx + 1);
+
+  // actieve info
+  ui.active.textContent =
+    activeCount ? `🔥 ${activeCount}/${slots} bezig` : "";
 }
 ``
