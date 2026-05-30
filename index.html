@@ -80,7 +80,7 @@ let isAdmin = false;
 let notified = false;
 
 //////////////////////////////
-// AUDIO
+// AUDIO + NOTIFICATIE
 //////////////////////////////
 
 const alertSound = new Audio(
@@ -88,6 +88,7 @@ const alertSound = new Audio(
 );
 
 let soundEnabled = false;
+
 document.addEventListener("click", () => {
   if (!soundEnabled) {
     alertSound.play().then(() => {
@@ -200,6 +201,7 @@ async function moveDown(item, items, i) {
 //////////////////////////////
 
 joinBtn.onclick = async () => {
+
   if (lastItems.find(i => i.clientId === clientId)) {
     return alert("Je zit al in wachtrij");
   }
@@ -252,7 +254,7 @@ function render(items, me) {
   queueList.innerHTML = "";
   notice.textContent = "";
 
-  let activeCount = items.filter(x => x.status === "active").length;
+  const activeCount = items.filter(x => x.status === "active").length;
 
   items.forEach((item, i) => {
 
@@ -271,19 +273,16 @@ function render(items, me) {
 
     if (item.id === currentDocId) li.classList.add("me");
 
-    // ✅ USER
     if (item.id === currentDocId) {
 
-      // ✅ 🔥 FIX HIER
       if (i < slots && activeCount < slots && item.status !== "active") {
         const startBtn = document.createElement("button");
         startBtn.textContent = "Start";
-        startBtn.onclick = async () => {
-          await updateDoc(doc(db, "queue", item.id), {
+        startBtn.onclick = () =>
+          updateDoc(doc(db, "queue", item.id), {
             status: "active",
             joinedAt: Date.now()
           });
-        };
         li.appendChild(startBtn);
       }
 
@@ -299,18 +298,15 @@ function render(items, me) {
       li.appendChild(laterBtn);
     }
 
-    // ✅ ADMIN
     if (isAdmin) {
 
       const up = document.createElement("button");
       up.textContent = "↑";
       up.onclick = () => moveUp(item, items, i);
-      if (i === 0) up.disabled = true;
 
       const down = document.createElement("button");
       down.textContent = "↓";
       down.onclick = () => moveDown(item, items, i);
-      if (i === items.length - 1) down.disabled = true;
 
       const del = document.createElement("button");
       del.textContent = "X";
@@ -335,17 +331,21 @@ function render(items, me) {
   }
 
   const idx = items.findIndex(x => x.id === me.id);
+
   yourStatus.textContent = `Positie: ${idx + 1}`;
 
-  const isTurn = idx < slots && activeCount < slots;
+  const isTurn = idx < slots && me.status !== "active";
 
+  // ✅ 🔥 FIX: MELDING BIJ EXTRA SLOT
   if (isTurn && !notified) {
     notice.textContent = "👉 JE BENT AAN DE BEURT!";
     notifyUser();
     notified = true;
   }
 
-  if (!isTurn) notified = false;
+  if (!isTurn) {
+    notified = false;
+  }
 }
 
 </script>
