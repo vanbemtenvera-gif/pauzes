@@ -13,12 +13,12 @@ body {
 }
 li { margin: 6px 0; }
 .me { background: #e3f2fd; }
-.notice {
-  color: green;
-  font-weight: bold;
-}
 .active {
   color: red;
+  font-weight: bold;
+}
+.notice {
+  color: green;
   font-weight: bold;
 }
 button { margin-left: 5px; }
@@ -36,8 +36,7 @@ button { margin-left: 5px; }
 <br><br>
 
 <label>
-  <input type="checkbox" id="adminToggle">
-  Admin modus
+  <input type="checkbox" id="adminToggle"> Admin modus
 </label>
 
 <div id="adminControls" style="display:none;">
@@ -53,6 +52,7 @@ button { margin-left: 5px; }
 <p id="notice" class="notice"></p>
 
 <script type="module">
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, addDoc, doc, deleteDoc,
@@ -77,7 +77,7 @@ let isAdmin = false;
 let wasTurn = false;
 
 //////////////////////////////
-// 🔔 NOTIFICATIE
+// NOTIFICATIE
 //////////////////////////////
 
 const sound = new Audio(
@@ -90,7 +90,7 @@ document.addEventListener("click", () => {
     sound.play().then(() => {
       sound.pause();
       soundEnabled = true;
-    });
+    }).catch(()=>{});
   }
 });
 
@@ -130,6 +130,12 @@ const yourStatus = document.getElementById("yourStatus");
 const notice = document.getElementById("notice");
 const activeInfo = document.getElementById("activeInfo");
 
+const adminToggle = document.getElementById("adminToggle");
+const adminControls = document.getElementById("adminControls");
+const increaseSlot = document.getElementById("increaseSlot");
+const decreaseSlot = document.getElementById("decreaseSlot");
+const slotCount = document.getElementById("slotCount");
+
 //////////////////////////////
 // ADMIN
 //////////////////////////////
@@ -138,10 +144,13 @@ adminToggle.onchange = () => {
   if (prompt("Wachtwoord") === "admin123") {
     isAdmin = true;
     adminControls.style.display = "block";
-  } else adminToggle.checked = false;
+  } else {
+    adminToggle.checked = false;
+  }
 };
 
 increaseSlot.onclick = () => setDoc(configDoc, { slots: slots + 1 });
+
 decreaseSlot.onclick = () => {
   if (slots > 1) setDoc(configDoc, { slots: slots - 1 });
 };
@@ -154,16 +163,40 @@ onSnapshot(configDoc, snap => {
 });
 
 //////////////////////////////
-// QUEUE ACTIONS
+// HELPERS
 //////////////////////////////
 
-joinBtn.onclick = () => addDoc(queueCol, {
-  clientId,
-  name: nameInput.value || "Anoniem",
-  position: Date.now(),
-  status: "waiting",
-  joinedAt: Date.now()
-});
+function moveUp(item, items, i) {
+  if (i === 0) return;
+  updateDoc(doc(db, "queue", item.id), {
+    position: items[i - 1].position - 0.1
+  });
+}
+
+function moveDown(item, items, i) {
+  if (i === items.length - 1) return;
+  updateDoc(doc(db, "queue", item.id), {
+    position: items[i + 1].position + 0.1
+  });
+}
+
+//////////////////////////////
+// JOIN / LEAVE
+//////////////////////////////
+
+joinBtn.onclick = async () => {
+  if (lastItems.find(i => i.clientId === clientId)) {
+    return alert("Je zit al in wachtrij");
+  }
+
+  await addDoc(queueCol, {
+    clientId,
+    name: nameInput.value || "Anoniem",
+    position: Date.now(),
+    status: "waiting",
+    joinedAt: Date.now()
+  });
+};
 
 leaveBtn.onclick = () => {
   if (currentDocId) deleteDoc(doc(db, "queue", currentDocId));
@@ -181,6 +214,7 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
   snap.forEach(d => {
     const item = { id: d.id, ...d.data() };
     items.push(item);
+
     if (item.clientId === clientId) {
       currentDocId = d.id;
       me = item;
@@ -194,7 +228,7 @@ onSnapshot(query(queueCol, orderBy("position")), snap => {
 });
 
 //////////////////////////////
-// RENDER (FIX HIER)
+// RENDER
 //////////////////////////////
 
 function render(items, me) {
@@ -215,11 +249,17 @@ function render(items, me) {
       li.classList.add("active");
     }
 
+    if (item.id === currentDocId) li.classList.add("me");
+
+    // ✅ USER
     if (item.id === currentDocId) {
 
-      const isTurnNow = i < slots && item.status !== "active" && activeCount < slots;
+      const canStart =
+        i < slots &&
+        item.status !== "active" &&
+        activeCount < slots;
 
-      if (isTurnNow) {
+      if (canStart) {
         const startBtn = document.createElement("button");
         startBtn.textContent = "Start";
         startBtn.onclick = () =>
@@ -229,27 +269,63 @@ function render(items, me) {
         li.appendChild(startBtn);
       }
 
-      const later = document.createElement("button");
-      later.textContent = "Later";
-      later.onclick = () =>
-        updateDoc(doc(db, "queue", item.id), {
-          position: Date.now()
-        });
-      li.appendChild(later);
+      const stopBtn = document.createElement("button");
+      stopBtn.textContent = "Stop";
+      stopBtn.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
+      li.appendChild(stopBtn);
+
+      const laterBtn = document.createElement("button");
+      laterBtn.textContent = "Later";
+      laterBtn.onclick = () => moveDown(item, items, i);
+      li.appendChild(laterBtn);
+    }
+
+    // ✅ ✅ ADMIN (FIX HIER)
+    if (isAdmin) {
+
+      const upBtn = document.createElement("button");
+      upBtn.textContent = "↑";
+      upBtn.onclick = () => moveUp(item, items, i);
+      if (i === 0) upBtn.disabled = true;
+
+      const downBtn = document.createElement("button");
+      downBtn.textContent = "↓";
+      downBtn.onclick = () => moveDown(item, items, i);
+      if (i === items.length - 1) downBtn.disabled = true;
+
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "X";
+      delBtn.onclick = () =>
+        deleteDoc(doc(db, "queue", item.id));
+
+      li.appendChild(upBtn);
+      li.appendChild(downBtn);
+      li.appendChild(delBtn);
     }
 
     queueList.appendChild(li);
   });
 
-  if (!me) return;
+  activeInfo.textContent =
+    activeCount ? `🔥 ${activeCount}/${slots} bezig` : "";
+
+  if (!me) {
+    yourStatus.textContent = "Niet in wachtrij";
+    wasTurn = false;
+    return;
+  }
 
   const idx = items.findIndex(i => i.id === me.id);
 
-  const isTurn = idx < slots && me.status !== "active" && activeCount < slots;
+  const isTurn =
+    idx < slots &&
+    me.status !== "active" &&
+    activeCount < slots;
 
-  // ✅ 🔥 PERFECTE DETECTIE
   if (isTurn && !wasTurn) {
     notify();
+    notice.textContent = "👉 JE BENT AAN DE BEURT!";
   }
 
   wasTurn = isTurn;
