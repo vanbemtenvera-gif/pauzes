@@ -251,6 +251,10 @@ function render(items, me) {
 
   const activeCount = items.filter(i => i.status === "active").length;
 
+  // ✅ 🔥 FIX: altijd updaten
+  ui.active.textContent =
+    activeCount ? `🔥 ${activeCount}/${slots} bezig` : "";
+
   items.forEach((item, i) => {
 
     const li = document.createElement("li");
@@ -314,7 +318,7 @@ function render(items, me) {
     ui.list.appendChild(li);
   });
 
-  // ✅ status gebruiker
+  // ✅ gebruiker status
   if (!me) {
     ui.status.textContent = "Niet in wachtrij";
     wasAbleToStart = false;
@@ -323,13 +327,12 @@ function render(items, me) {
 
   const idx = items.findIndex(i => i.id === me.id);
 
-  // ✅ 🔥 CORRECTE LOGICA
+  // ✅ juiste logica
   const canStart =
     idx < slots &&
     me.status !== "active" &&
     activeCount < slots;
 
-  // ✅ notificatie ENKEL wanneer start mogelijk wordt
   if (canStart && !wasAbleToStart) {
     notify();
     ui.notice.textContent = "👉 JE BENT AAN DE BEURT!";
@@ -338,7 +341,4 @@ function render(items, me) {
   wasAbleToStart = canStart;
 
   ui.status.textContent = "Positie: " + (idx + 1);
-
-  ui.active.textContent =
-    activeCount ? `🔥 ${activeCount}/${slots} bezig` : "";
 }
